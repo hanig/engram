@@ -1,0 +1,167 @@
+"""Configuration management for Hani Replica."""
+
+import os
+from pathlib import Path
+from typing import Any
+
+from dotenv import load_dotenv
+
+# Project root directory
+PROJECT_ROOT = Path(__file__).parent.parent.resolve()
+
+# Load environment variables from .env file
+load_dotenv(PROJECT_ROOT / ".env")
+
+
+def get_env(key: str, default: str | None = None, required: bool = False) -> str | None:
+    """Get environment variable with optional default and required check."""
+    value = os.getenv(key, default)
+    if required and value is None:
+        raise ValueError(f"Required environment variable {key} is not set")
+    return value
+
+
+# Google Account Configuration
+GOOGLE_ACCOUNTS = ["arc", "personal", "tahoe", "therna", "exai", "amplify"]
+
+GOOGLE_EMAILS = {
+    "arc": "hani.goodarzi@arcinstitute.org",
+    "personal": "hani.goodarzi@gmail.com",
+    "tahoe": "hani@tahoebio.ai",
+    "therna": "hani.goodarzi@therna.com",
+    "exai": "hanig@exai.bio",
+    "amplify": "hani@amplifypartners.com",
+}
+
+# Tiered search configuration - Tier 1 accounts are searched first
+GOOGLE_TIER1 = ["arc", "personal"]
+GOOGLE_TIER2 = ["tahoe", "therna", "exai", "amplify"]
+
+# Google OAuth credentials
+GOOGLE_CLIENT_ID = get_env("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = get_env("GOOGLE_CLIENT_SECRET")
+
+# Google API scopes
+GOOGLE_SCOPES = [
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/gmail.compose",  # For creating drafts
+    "https://www.googleapis.com/auth/drive.readonly",
+    "https://www.googleapis.com/auth/calendar.readonly",
+]
+
+
+def get_google_token_path(account: str) -> Path:
+    """Get the path to the OAuth token file for a Google account."""
+    if account not in GOOGLE_ACCOUNTS:
+        raise ValueError(f"Unknown Google account: {account}")
+    return PROJECT_ROOT / "credentials" / f"google_token_{account}.json"
+
+
+def get_google_credentials_path() -> Path:
+    """Get the path to the Google OAuth client credentials file."""
+    return PROJECT_ROOT / "credentials" / "google_client_secret.json"
+
+
+# GitHub Configuration
+GITHUB_TOKEN = get_env("GITHUB_TOKEN")
+GITHUB_USERNAME = get_env("GITHUB_USERNAME", "hanig")
+GITHUB_ORG = get_env("GITHUB_ORG", "goodarzilab")
+
+# Slack Configuration
+SLACK_BOT_TOKEN = get_env("SLACK_BOT_TOKEN")
+SLACK_APP_TOKEN = get_env("SLACK_APP_TOKEN")
+SLACK_WORKSPACE = get_env("SLACK_WORKSPACE", "goodarzilab")
+
+# Authorized Slack users (comma-separated user IDs)
+_authorized_users = get_env("SLACK_AUTHORIZED_USERS", "")
+SLACK_AUTHORIZED_USERS = [u.strip() for u in _authorized_users.split(",") if u.strip()]
+
+# OpenAI Configuration
+OPENAI_API_KEY = get_env("OPENAI_API_KEY")
+EMBEDDING_MODEL = "text-embedding-3-large"
+EMBEDDING_DIMENSIONS = 3072  # text-embedding-3-large default
+
+# Anthropic Configuration
+ANTHROPIC_API_KEY = get_env("ANTHROPIC_API_KEY")
+INTENT_MODEL = "claude-3-haiku-20240307"
+
+# Database paths
+KNOWLEDGE_GRAPH_DB = PROJECT_ROOT / get_env("KNOWLEDGE_GRAPH_DB", "data/knowledge_graph.db")
+CHROMA_DB_PATH = PROJECT_ROOT / get_env("CHROMA_DB_PATH", "data/chroma")
+
+# Logging configuration
+LOG_LEVEL = get_env("LOG_LEVEL", "INFO")
+LOG_FILE = PROJECT_ROOT / get_env("LOG_FILE", "logs/hani_replica.log")
+
+# Sync settings
+SYNC_BATCH_SIZE = int(get_env("SYNC_BATCH_SIZE", "100"))
+EMBEDDING_BATCH_SIZE = int(get_env("EMBEDDING_BATCH_SIZE", "50"))
+
+# Ensure required directories exist
+DATA_DIR = PROJECT_ROOT / "data"
+LOGS_DIR = PROJECT_ROOT / "logs"
+CREDENTIALS_DIR = PROJECT_ROOT / "credentials"
+
+
+def ensure_directories() -> None:
+    """Create required directories if they don't exist."""
+    for directory in [DATA_DIR, LOGS_DIR, CREDENTIALS_DIR]:
+        directory.mkdir(parents=True, exist_ok=True)
+
+
+def get_config() -> dict[str, Any]:
+    """Return all configuration as a dictionary (excluding secrets)."""
+    return {
+        "project_root": str(PROJECT_ROOT),
+        "google_accounts": GOOGLE_ACCOUNTS,
+        "google_emails": GOOGLE_EMAILS,
+        "google_tier1": GOOGLE_TIER1,
+        "google_tier2": GOOGLE_TIER2,
+        "github_username": GITHUB_USERNAME,
+        "github_org": GITHUB_ORG,
+        "slack_workspace": SLACK_WORKSPACE,
+        "embedding_model": EMBEDDING_MODEL,
+        "intent_model": INTENT_MODEL,
+        "knowledge_graph_db": str(KNOWLEDGE_GRAPH_DB),
+        "chroma_db_path": str(CHROMA_DB_PATH),
+        "log_level": LOG_LEVEL,
+        "sync_batch_size": SYNC_BATCH_SIZE,
+        "embedding_batch_size": EMBEDDING_BATCH_SIZE,
+    }
+
+
+def validate_config() -> list[str]:
+    """Validate configuration and return list of missing/invalid items."""
+    issues = []
+
+    # Check Google credentials
+    if not GOOGLE_CLIENT_ID:
+        issues.append("GOOGLE_CLIENT_ID not set")
+    if not GOOGLE_CLIENT_SECRET:
+        issues.append("GOOGLE_CLIENT_SECRET not set")
+
+    # Check GitHub token
+    if not GITHUB_TOKEN:
+        issues.append("GITHUB_TOKEN not set")
+
+    # Check Slack tokens
+    if not SLACK_BOT_TOKEN:
+        issues.append("SLACK_BOT_TOKEN not set")
+    if not SLACK_APP_TOKEN:
+        issues.append("SLACK_APP_TOKEN not set")
+
+    # Check AI API keys
+    if not OPENAI_API_KEY:
+        issues.append("OPENAI_API_KEY not set")
+    if not ANTHROPIC_API_KEY:
+        issues.append("ANTHROPIC_API_KEY not set")
+
+    # Check authorized users
+    if not SLACK_AUTHORIZED_USERS:
+        issues.append("SLACK_AUTHORIZED_USERS not set (bot will reject all users)")
+
+    return issues
+
+
+# Initialize directories on import
+ensure_directories()

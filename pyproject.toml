@@ -1,0 +1,94 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hani-replica"
+version = "0.1.0"
+description = "Personal knowledge graph with semantic search and Slack bot interface"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Hani Goodarzi", email = "hani.goodarzi@gmail.com"}
+]
+keywords = ["knowledge-graph", "semantic-search", "slack-bot", "personal-assistant"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "python-dotenv>=1.0.0",
+    "google-auth>=2.0.0",
+    "google-auth-oauthlib>=1.0.0",
+    "google-api-python-client>=2.0.0",
+    "PyGithub>=2.1.0",
+    "slack_sdk>=3.20.0",
+    "slack_bolt>=1.18.0",
+    "openai>=1.0.0",
+    "anthropic>=0.18.0",
+    "chromadb>=0.4.0",
+    "httpx>=0.25.0",
+    "tenacity>=8.2.0",
+    "tqdm>=4.66.0",
+    "python-dateutil>=2.8.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.5.0",
+]
+
+[project.scripts]
+hani-sync = "scripts.full_sync_pipeline:main"
+hani-delta = "scripts.daily_delta_sync:main"
+hani-bot = "scripts.run_bot:main"
+hani-query = "scripts.query_knowledge:main"
+hani-briefing = "scripts.daily_briefing:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*", "scripts*"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+include = '\.pyi?$'
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # Pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+    "B008",  # do not perform function calls in argument defaults
+]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+asyncio_mode = "auto"

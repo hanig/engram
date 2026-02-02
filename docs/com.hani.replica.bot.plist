@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.hani.replica.bot</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/env</string>
+        <string>python3</string>
+        <string>/Users/hani/hani_replica/scripts/run_bot.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/hani/hani_replica</string>
+
+    <!-- Keep the bot running -->
+    <key>KeepAlive</key>
+    <true/>
+
+    <!-- Start when loaded -->
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- Restart if crashed, with throttle -->
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+
+    <key>StandardOutPath</key>
+    <string>/Users/hani/hani_replica/logs/bot.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/hani/hani_replica/logs/bot_error.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin</string>
+    </dict>
+</dict>
+</plist>
+<!--
+Installation:
+1. Copy this file to ~/Library/LaunchAgents/
+2. Load with: launchctl load ~/Library/LaunchAgents/com.hani.replica.bot.plist
+3. Check status: launchctl list | grep hani.replica.bot
+
+To stop: launchctl stop com.hani.replica.bot
+To unload: launchctl unload ~/Library/LaunchAgents/com.hani.replica.bot.plist
+To check logs: tail -f ~/hani_replica/logs/bot.log
+-->
