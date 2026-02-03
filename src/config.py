@@ -1,5 +1,6 @@
 """Configuration management for Hani Replica."""
 
+import json
 import os
 from pathlib import Path
 from typing import Any
@@ -21,20 +22,43 @@ def get_env(key: str, default: str | None = None, required: bool = False) -> str
     return value
 
 
-# Google Account Configuration
-GOOGLE_ACCOUNTS = ["arc", "personal", "tahoe", "therna", "amplify"]
+def get_env_list(key: str, default: list[str] | None = None) -> list[str]:
+    """Get environment variable as a list (comma-separated)."""
+    value = os.getenv(key)
+    if not value:
+        return default or []
+    return [item.strip() for item in value.split(",") if item.strip()]
 
-GOOGLE_EMAILS = {
-    "arc": "hani.goodarzi@arcinstitute.org",
-    "personal": "hani.goodarzi@gmail.com",
-    "tahoe": "hani@tahoebio.ai",
-    "therna": "hani.goodarzi@therna.com",
-    "amplify": "hani@amplifypartners.com",
-}
+
+def get_env_dict(key: str, default: dict[str, str] | None = None) -> dict[str, str]:
+    """Get environment variable as a dictionary (JSON format)."""
+    value = os.getenv(key)
+    if not value:
+        return default or {}
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError:
+        # Try key=value,key=value format
+        result = {}
+        for pair in value.split(","):
+            if "=" in pair:
+                k, v = pair.split("=", 1)
+                result[k.strip()] = v.strip()
+        return result
+
+
+# Google Account Configuration
+# GOOGLE_ACCOUNTS: comma-separated list of account names (e.g., "work,personal")
+# GOOGLE_EMAILS: JSON dict mapping account names to emails
+#   e.g., '{"work": "user@company.com", "personal": "user@gmail.com"}'
+GOOGLE_ACCOUNTS = get_env_list("GOOGLE_ACCOUNTS")
+GOOGLE_EMAILS = get_env_dict("GOOGLE_EMAILS")
 
 # Tiered search configuration - Tier 1 accounts are searched first
-GOOGLE_TIER1 = ["arc", "personal"]
-GOOGLE_TIER2 = ["tahoe", "therna", "amplify"]
+# GOOGLE_TIER1: comma-separated list of primary accounts
+# GOOGLE_TIER2: comma-separated list of secondary accounts
+GOOGLE_TIER1 = get_env_list("GOOGLE_TIER1")
+GOOGLE_TIER2 = get_env_list("GOOGLE_TIER2")
 
 # Google OAuth credentials
 GOOGLE_CLIENT_ID = get_env("GOOGLE_CLIENT_ID")
@@ -63,13 +87,13 @@ def get_google_credentials_path() -> Path:
 
 # GitHub Configuration
 GITHUB_TOKEN = get_env("GITHUB_TOKEN")
-GITHUB_USERNAME = get_env("GITHUB_USERNAME", "hanig")
-GITHUB_ORG = get_env("GITHUB_ORG", "goodarzilab")
+GITHUB_USERNAME = get_env("GITHUB_USERNAME")
+GITHUB_ORG = get_env("GITHUB_ORG")
 
 # Slack Configuration
 SLACK_BOT_TOKEN = get_env("SLACK_BOT_TOKEN")
 SLACK_APP_TOKEN = get_env("SLACK_APP_TOKEN")
-SLACK_WORKSPACE = get_env("SLACK_WORKSPACE", "goodarzilab")
+SLACK_WORKSPACE = get_env("SLACK_WORKSPACE")
 
 # Authorized Slack users (comma-separated user IDs)
 _authorized_users = get_env("SLACK_AUTHORIZED_USERS", "")
