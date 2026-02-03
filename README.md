@@ -1,14 +1,29 @@
 # Hani Replica
 
-A personal knowledge graph system that aggregates data from multiple Google accounts, GitHub, and Slack, with semantic search and an interactive Slack bot interface.
+A personal knowledge graph system that aggregates data from multiple Google accounts, GitHub, and Slack, with semantic search and an interactive Slack bot interface powered by intelligent agents.
 
 ## Features
 
+### Core Capabilities
 - **Multi-Account Google Integration**: Sync Gmail, Google Drive, and Google Calendar from up to 6 accounts with tiered search (primary accounts searched first)
 - **Knowledge Graph**: SQLite-based storage of entities (people, repos, files) and content with relationship tracking
 - **Semantic Search**: OpenAI embeddings (text-embedding-3-large) with ChromaDB vector store for intelligent content retrieval
-- **Slack Bot**: Interactive assistant using Socket Mode (no public URL required) with LLM-powered intent classification
+- **Slack Bot**: Interactive assistant using Socket Mode (no public URL required)
 - **Daily Briefings**: Aggregated calendar, email counts, and GitHub activity summaries
+
+### Advanced Agent Features
+- **Natural Conversation**: Chat naturally without triggering tool searches - greetings, questions about the bot, and general conversation are handled intelligently
+- **Multi-Agent Architecture**: Orchestrator routes tasks to specialist agents (Calendar, Email, GitHub, Research) for domain expertise
+- **Streaming Responses**: Real-time token-by-token response streaming for better UX
+- **Tool Calling**: LLM-driven tool selection with multi-step execution capabilities
+- **Persistent Memory**: Conversation history and user preferences survive restarts
+- **Proactive Alerts**: Calendar reminders, important email notifications, and daily briefings
+
+### Security
+- **Prompt Injection Protection**: Pattern-based detection and sanitization of malicious inputs
+- **Rate Limiting**: Per-user request throttling to prevent abuse
+- **Comprehensive Audit Logging**: All bot interactions logged to SQLite for security review
+- **Input Sanitization**: Removal of suspicious unicode and content filtering
 
 ## Architecture
 
@@ -17,11 +32,20 @@ A personal knowledge graph system that aggregates data from multiple Google acco
 │                         Slack Bot                                │
 │  (Socket Mode - DMs and @mentions)                              │
 ├─────────────────────────────────────────────────────────────────┤
-│                     Intent Router                                │
-│  (Claude Haiku for classification)                              │
+│                    Security Layer                                │
+│  Rate Limiting │ Input Sanitization │ Audit Logging             │
 ├─────────────────────────────────────────────────────────────────┤
-│                      Handlers                                    │
-│  Calendar │ Email │ Search │ GitHub │ Briefing                  │
+│                    Bot Mode Router                               │
+│  intent (legacy) │ agent (single) │ multi_agent (specialists)   │
+├─────────────────────────────────────────────────────────────────┤
+│                    Agent Executor                                │
+│  Tool Calling │ Streaming │ Multi-step Execution                │
+├───────────────────────┬─────────────────────────────────────────┤
+│     Orchestrator      │          Specialist Agents               │
+│  (Task Planning)      │  Calendar │ Email │ GitHub │ Research   │
+├───────────────────────┴─────────────────────────────────────────┤
+│                      Tools Layer                                 │
+│  search_emails │ check_calendar │ find_availability │ ...       │
 ├─────────────────────────────────────────────────────────────────┤
 │              Query Engine + Semantic Search                      │
 ├──────────────────────┬──────────────────────────────────────────┤
@@ -126,8 +150,28 @@ SLACK_AUTHORIZED_USERS=U12345678
 # OpenAI API Key (for embeddings)
 OPENAI_API_KEY=sk-xxxxx
 
-# Anthropic API Key (for intent classification)
+# Anthropic API Key (for intent classification and agents)
 ANTHROPIC_API_KEY=sk-ant-xxxxx
+
+# Bot Mode: "intent" (legacy), "agent" (single agent), "multi_agent" (specialists)
+BOT_MODE=agent
+
+# Agent model for tool calling (default: claude-sonnet-4-20250514)
+AGENT_MODEL=claude-sonnet-4-20250514
+
+# Enable streaming responses (applies to agent and multi_agent modes)
+ENABLE_STREAMING=true
+
+# Security Settings
+SECURITY_LEVEL=moderate          # strict, moderate, or permissive
+RATE_LIMIT_REQUESTS=30           # Max requests per window
+RATE_LIMIT_WINDOW=60             # Window in seconds
+RATE_LIMIT_BLOCK_DURATION=300    # Block duration when limit exceeded
+
+# Audit Logging
+ENABLE_AUDIT_LOG=true
+AUDIT_LOG_PATH=data/audit.db
+AUDIT_RETENTION_DAYS=90
 ```
 
 ### Google Account Authentication
@@ -196,12 +240,40 @@ The bot runs in Socket Mode (no public URL needed). Keep it running to respond t
 nohup python scripts/run_bot.py > logs/bot.log 2>&1 &
 ```
 
+## Bot Modes
+
+The bot supports three operating modes, configured via `BOT_MODE`:
+
+### Intent Mode (`intent`)
+Legacy mode using intent classification with hardcoded handlers.
+- Fast and predictable
+- Limited to predefined intents
+- Best for simple, specific queries
+
+### Agent Mode (`agent`) - Default
+Single agent with LLM-driven tool calling.
+- Dynamic tool selection
+- Multi-step execution
+- Streaming responses
+- Natural conversation support
+
+### Multi-Agent Mode (`multi_agent`)
+Orchestrator routes to specialist agents.
+- **Calendar Agent**: Events, availability, scheduling
+- **Email Agent**: Search, drafts, email analysis
+- **GitHub Agent**: PRs, issues, repository activity
+- **Research Agent**: Semantic search, briefings
+
+Each specialist has domain expertise and relevant tools.
+
 ## Slack Bot Commands
 
 Talk to the bot via DM or @mention in channels:
 
 | Query | Description |
 |-------|-------------|
+| `Hi` / `Hello` | Natural greeting - no tool search triggered |
+| `What can you do?` | Help and capabilities overview |
 | `What's on my calendar today?` | Show today's events from all accounts |
 | `What's my schedule for tomorrow?` | Show tomorrow's calendar |
 | `When am I free this week?` | Find available time slots |
@@ -215,6 +287,20 @@ Talk to the bot via DM or @mention in channels:
 ### Example Interactions
 
 ```
+You: Hi!
+Bot: Hi! How can I help you today? I can check your calendar, search
+     emails, look up GitHub activity, or just chat.
+
+You: What can you do?
+Bot: I'm your personal assistant with access to:
+     • Calendar (6 Google accounts)
+     • Email search and drafts
+     • Google Drive documents
+     • GitHub repos, PRs, and issues
+     • Slack message history
+
+     Just ask naturally - "what's on my calendar?" or "find emails about X"
+
 You: What's on my calendar today?
 Bot: 📅 Today's Events (Tuesday, Feb 3):
      • 9:00 AM - Team Standup (arc)
@@ -266,11 +352,34 @@ hani_replica/
 │   │
 │   ├── bot/                      # Slack bot
 │   │   ├── app.py                # Main bot application
-│   │   ├── event_handlers.py     # Message handlers
+│   │   ├── event_handlers.py     # Message handlers with security
 │   │   ├── intent_router.py      # LLM intent classification
-│   │   ├── conversation.py       # Conversation state
+│   │   ├── conversation.py       # Conversation state + persistence
 │   │   ├── formatters.py         # Slack Block Kit formatting
-│   │   └── handlers/             # Intent-specific handlers
+│   │   ├── tools.py              # Tool definitions for LLM
+│   │   ├── executor.py           # Agent executor with streaming
+│   │   ├── user_memory.py        # Long-term user preferences
+│   │   ├── heartbeat.py          # Proactive notifications
+│   │   ├── security.py           # Input sanitization + rate limiting
+│   │   ├── audit.py              # Comprehensive audit logging
+│   │   ├── handlers/             # Intent-specific handlers
+│   │   │   ├── calendar.py
+│   │   │   ├── email.py
+│   │   │   ├── search.py
+│   │   │   ├── github.py
+│   │   │   ├── briefing.py
+│   │   │   └── chat.py           # Natural conversation handler
+│   │   └── agents/               # Multi-agent architecture
+│   │       ├── base.py           # BaseAgent class
+│   │       ├── orchestrator.py   # Task routing + synthesis
+│   │       ├── calendar_agent.py # Calendar specialist
+│   │       ├── email_agent.py    # Email specialist
+│   │       ├── github_agent.py   # GitHub specialist
+│   │       └── research_agent.py # Search/briefing specialist
+│   │
+│   ├── mcp/                      # Model Context Protocol
+│   │   ├── server.py             # MCP server (expose tools)
+│   │   └── client.py             # MCP client (external tools)
 │   │
 │   └── query/                    # Query engine
 │       ├── engine.py             # Unified query interface
@@ -284,9 +393,14 @@ hani_replica/
 │   └── run_bot.py                # Start Slack bot
 │
 ├── data/                         # Local databases (gitignored)
+│   ├── knowledge_graph.db        # Main knowledge graph
+│   ├── chroma/                   # Vector store
+│   ├── conversations.db          # Persistent conversations
+│   ├── user_memory.db            # User preferences
+│   └── audit.db                  # Security audit log
 ├── logs/                         # Log files (gitignored)
 ├── credentials/                  # OAuth tokens (gitignored)
-└── tests/                        # Test suite
+└── tests/                        # Test suite (359 tests)
 ```
 
 ## Automation (macOS)
@@ -305,19 +419,90 @@ cp docs/com.hani.replica.bot.plist ~/Library/LaunchAgents/
 launchctl load ~/Library/LaunchAgents/com.hani.replica.bot.plist
 ```
 
-## Security Notes
+## Security
 
+### Access Control
 - **Credentials**: All tokens and OAuth credentials are stored locally in `credentials/` (gitignored)
 - **Data**: All indexed data stays local in `data/` (gitignored)
 - **Bot Access**: Only Slack users listed in `SLACK_AUTHORIZED_USERS` can interact with the bot
 - **Email Drafts**: The bot can create email drafts but never sends emails automatically
 - **GitHub Actions**: Issue creation requires explicit confirmation
 
+### Prompt Injection Protection
+The bot includes pattern-based detection for common injection attempts:
+- System prompt manipulation ("ignore previous instructions")
+- Delimiter injection (```system, <system>, [SYSTEM])
+- Jailbreak attempts ("DAN mode", "developer mode")
+- Output manipulation ("reveal your prompt")
+
+Security levels (`SECURITY_LEVEL`):
+- `strict`: Block suspicious content entirely
+- `moderate`: Warn and filter suspicious content (default)
+- `permissive`: Log only, allow all content
+
+### Rate Limiting
+Per-user request throttling prevents abuse:
+- Default: 30 requests per 60-second window
+- Exceeded: 5-minute block
+- Configurable via environment variables
+
+### Audit Logging
+All bot interactions are logged to `data/audit.db`:
+- Messages received (user, channel, content hash)
+- Tool executions (name, input, result, duration)
+- Security events (threats detected, actions blocked)
+- Agent activity (routing decisions, synthesis)
+
+Query audit logs:
+```bash
+python -c "from src.bot.audit import get_audit_logger; print(get_audit_logger().query(limit=10))"
+```
+
+Logs are retained for 90 days by default (`AUDIT_RETENTION_DAYS`).
+
+## MCP Integration
+
+The bot exposes its capabilities via the [Model Context Protocol](https://modelcontextprotocol.io/), allowing external tools to query your knowledge graph.
+
+**Start MCP server:**
+```bash
+python -m src.mcp.server
+```
+
+**Available MCP tools:**
+- `search_emails` - Search emails across accounts
+- `get_calendar_events` - Get calendar events for a date
+- `check_availability` - Find available time slots
+- `search_documents` - Search Google Drive files
+- `get_github_activity` - Get GitHub PRs and issues
+
+**Connect from Claude Desktop:**
+Add to `~/.claude/mcp.json`:
+```json
+{
+  "servers": {
+    "hani-replica": {
+      "command": "python",
+      "args": ["-m", "src.mcp.server"],
+      "cwd": "/path/to/hani_replica"
+    }
+  }
+}
+```
+
 ## Development
 
 **Run tests:**
 ```bash
 python -m pytest tests/ -v
+
+# Run specific test modules
+pytest tests/test_agents.py -v      # Multi-agent tests
+pytest tests/test_security.py -v    # Security tests
+pytest tests/test_executor.py -v    # Executor + streaming tests
+
+# Run with coverage
+pytest --cov=src tests/
 ```
 
 **Check logs:**
@@ -330,14 +515,26 @@ tail -f logs/hani_replica.log
 python scripts/query_knowledge.py "search term"
 ```
 
+**Debug bot modes:**
+```bash
+# Test intent classification
+python -c "from src.bot.intent_router import IntentRouter; r = IntentRouter(); print(r.route('hi'))"
+
+# Test agent execution
+python -c "from src.bot.executor import AgentExecutor; e = AgentExecutor(); print(e.run('what is on my calendar'))"
+```
+
 ## Cost Estimate
 
 | Service | Initial Sync | Monthly |
 |---------|--------------|---------|
 | OpenAI Embeddings | $15-30 | $15-25 |
-| Anthropic (Haiku) | - | $5-10 |
+| Anthropic (Haiku - intent) | - | $5-10 |
+| Anthropic (Sonnet - agent) | - | $20-50 |
 | Google/GitHub/Slack APIs | Free | Free |
-| **Total** | **$15-30** | **$20-35** |
+| **Total** | **$15-30** | **$40-85** |
+
+*Agent mode costs vary based on usage. Multi-agent mode may use more tokens due to specialist prompts.*
 
 ## License
 
@@ -346,3 +543,8 @@ Private repository - not for distribution.
 ## Acknowledgments
 
 Built with Claude Code (Anthropic).
+
+Inspired by modern agent architectures:
+- [OpenClaw](https://openclaw.ai/) - Multi-agent patterns
+- [LangGraph](https://www.langchain.com/langgraph) - Agent orchestration
+- [Model Context Protocol](https://modelcontextprotocol.io/) - Tool integration standard
