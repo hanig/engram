@@ -38,6 +38,24 @@ CONVERSATIONAL_PATTERNS = [
     "help", "bye", "goodbye", "see you",
 ]
 
+# Keywords that indicate the user wants personal data (needs tools)
+PERSONAL_DATA_KEYWORDS = [
+    # Calendar
+    "calendar", "schedule", "meeting", "event", "free", "available", "availability",
+    "busy", "appointment", "when am i", "what's on my",
+    # Email
+    "email", "mail", "inbox", "message from", "sent to", "draft",
+    # GitHub
+    "github", "pr", "pull request", "issue", "repo", "repository", "commit", "code review",
+    # Documents/Search
+    "document", "doc", "file", "drive", "search my", "find my", "look up my",
+    "in my", "from my", "my emails", "my calendar", "my slack",
+    # Briefing
+    "briefing", "summary", "catch up", "what did i miss", "update me",
+    # Slack
+    "slack", "channel", "thread",
+]
+
 
 class Orchestrator(BaseAgent):
     """Orchestrator that routes tasks to specialist agents.
@@ -122,7 +140,7 @@ Remember: You're Hani's trusted assistant. Be helpful, accurate, and efficient."
         return "Main orchestrator: routes tasks and handles conversation"
 
     def _is_conversational(self, message: str) -> bool:
-        """Check if message is purely conversational."""
+        """Check if message is purely conversational (greetings, small talk)."""
         message_lower = message.lower().strip()
 
         # Check greetings
@@ -140,6 +158,17 @@ Remember: You're Hani's trusted assistant. Be helpful, accurate, and efficient."
         # Very short messages are often conversational
         if len(message_lower.split()) <= 2 and "?" not in message:
             return True
+
+        return False
+
+    def _needs_personal_data(self, message: str) -> bool:
+        """Check if the message needs access to personal data (tools required)."""
+        message_lower = message.lower()
+
+        # Check for personal data keywords
+        for keyword in PERSONAL_DATA_KEYWORDS:
+            if keyword in message_lower:
+                return True
 
         return False
 
@@ -188,12 +217,21 @@ Remember: You're Hani's trusted assistant. Be helpful, accurate, and efficient."
         Returns:
             TaskPlan describing how to handle the request.
         """
-        # Check if conversational
+        # Check if conversational (greetings, small talk)
         if self._is_conversational(message):
             return TaskPlan(
                 needs_specialist=False,
                 is_conversational=True,
                 reasoning="Conversational message - responding directly",
+            )
+
+        # Check if this needs personal data access
+        if not self._needs_personal_data(message):
+            # General question - answer directly without tools
+            return TaskPlan(
+                needs_specialist=False,
+                is_conversational=True,  # Use direct response path
+                reasoning="General question - responding with Claude's knowledge",
             )
 
         # Get scores from all specialists
@@ -206,11 +244,11 @@ Remember: You're Hani's trusted assistant. Be helpful, accurate, and efficient."
         relevant = [(t, s) for t, s in scores.items() if s >= 0.3]
 
         if not relevant:
-            # Default to research
+            # Default to research for personal data queries
             return TaskPlan(
                 needs_specialist=True,
                 specialist_types=[AgentType.RESEARCH],
-                reasoning="No strong match - using research agent for general search",
+                reasoning="Personal data query - using research agent",
             )
 
         if len(relevant) == 1:
@@ -243,43 +281,59 @@ Remember: You're Hani's trusted assistant. Be helpful, accurate, and efficient."
             reasoning=f"Best match: {best[0].value} (score: {best[1]:.2f})",
         )
 
-    def _get_chat_response(self, message: str, context: ConversationContext) -> str:
-        """Generate a direct chat response without tools.
+    def _get_direct_response(self, message: str, context: ConversationContext) -> str:
+        """Generate a direct response using Claude's knowledge (no tools).
+
+        Used for general questions that don't need personal data access.
 
         Args:
             message: User message.
             context: Conversation context.
 
         Returns:
-            Chat response string.
+            Response string.
         """
-        system = f"""You are Hani's friendly personal AI assistant.
+        system = f"""You are Hani's personal AI assistant, powered by Claude.
 
 Today's date: {datetime.now().strftime("%Y-%m-%d %A")}
 
-You're having a casual conversation. Respond naturally and helpfully.
-Keep responses concise but warm. You can help with:
-- Calendar (check schedule, find availability)
-- Email (search, create drafts)
-- GitHub (PRs, issues, code search)
-- General questions about documents and people
+You are a helpful, knowledgeable assistant. Answer questions directly using your knowledge.
+Be concise but thorough. You're like Claude Code - capable of general conversation and
+answering a wide range of questions.
 
-If asked what you can do, briefly explain your capabilities.
-For greetings, respond warmly and offer to help."""
+CAPABILITIES:
+- Answer general knowledge questions
+- Help with reasoning, analysis, and explanations
+- Provide advice and suggestions
+- Have natural conversations
+
+SPECIAL CAPABILITIES (when user asks about their personal data):
+- Search emails across multiple Google accounts
+- Check calendar and find availability
+- Search Google Drive documents
+- Look up GitHub PRs, issues, and activity
+- Search Slack message history
+
+GUIDELINES:
+- For general questions: answer directly using your knowledge
+- For personal data questions: I'll use specialized tools (but user didn't ask for that now)
+- Be helpful, accurate, and conversational
+- Keep responses appropriately concise for chat
+- If you don't know something, say so honestly"""
 
         messages = self._build_messages(context, message)
 
         try:
             response = self.client.messages.create(
                 model=self.model,
-                max_tokens=1024,
+                max_tokens=2048,
                 system=system,
                 messages=messages,
             )
-            return self._extract_text(response) or "Hi! How can I help you today?"
+            return self._extract_text(response) or "I'm here to help! What would you like to know?"
         except Exception as e:
-            logger.error(f"Chat response error: {e}")
-            return "Hi! I'm here to help. What can I do for you?"
+            logger.error(f"Direct response error: {e}")
+            return "I encountered an error. Could you try rephrasing your question?"
 
     def run(
         self,
@@ -303,14 +357,14 @@ For greetings, respond warmly and offer to help."""
         plan = self._plan_task(message, context)
         logger.info(f"Task plan: {plan.reasoning}")
 
-        # Handle conversational messages directly with simple chat
+        # Handle conversational/general messages directly (no tools needed)
         if plan.is_conversational:
-            response_text = self._get_chat_response(message, context)
+            response_text = self._get_direct_response(message, context)
             return AgentResult(
                 response=response_text,
                 agent_type=self.AGENT_TYPE,
                 iterations=1,
-                metadata={"conversational": True},
+                metadata={"direct_response": True},
             )
 
         # For non-conversational without specialists, use base run
@@ -356,14 +410,14 @@ For greetings, respond warmly and offer to help."""
         plan = self._plan_task(message, context)
         logger.info(f"Task plan: {plan.reasoning}")
 
-        # Handle conversational messages directly with simple chat
+        # Handle conversational/general messages directly (no tools needed)
         if plan.is_conversational:
             yield AgentStreamEvent(
                 event_type="thinking",
-                data="Processing...",
+                data="Thinking...",
                 agent_type=self.AGENT_TYPE,
             )
-            response_text = self._get_chat_response(message, context)
+            response_text = self._get_direct_response(message, context)
             yield AgentStreamEvent(
                 event_type="done",
                 data=response_text,
@@ -373,7 +427,7 @@ For greetings, respond warmly and offer to help."""
                 response=response_text,
                 agent_type=self.AGENT_TYPE,
                 iterations=1,
-                metadata={"conversational": True},
+                metadata={"direct_response": True},
             )
 
         # For non-conversational without specialists, use base streaming
