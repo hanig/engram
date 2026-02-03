@@ -683,6 +683,7 @@ def _handle_with_multi_agent_streaming(
         accumulated_text = ""
         current_status = "Thinking..."
         last_update_time = time.time()
+        done_text = None  # Track text from "done" event
 
         # Process streaming events
         stream_gen = orchestrator.run_streaming(message=text, context=context)
@@ -723,8 +724,8 @@ def _handle_with_multi_agent_streaming(
                     return {"text": error_text, "_streaming_sent": True}, None
 
                 elif event.event_type == "done":
-                    final_text = event.data or accumulated_text
-                    _update_message_safe(client, channel_id, message_ts, final_text)
+                    done_text = event.data or accumulated_text
+                    _update_message_safe(client, channel_id, message_ts, done_text)
 
             except Exception as e:
                 logger.warning(f"Error processing stream event: {e}")
@@ -748,8 +749,11 @@ def _handle_with_multi_agent_streaming(
 
             return {"text": final_text, "_streaming_sent": True}, None
         else:
-            fallback_text = accumulated_text or "I'm not sure how to respond."
-            _update_message_safe(client, channel_id, message_ts, fallback_text)
+            # Use done_text if we got it from a "done" event, otherwise fall back
+            fallback_text = done_text or accumulated_text or "I'm not sure how to respond."
+            if not done_text:
+                # Only update if we haven't already from "done" event
+                _update_message_safe(client, channel_id, message_ts, fallback_text)
             return {"text": fallback_text, "_streaming_sent": True}, None
 
     except Exception as e:
