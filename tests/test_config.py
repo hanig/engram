@@ -18,7 +18,7 @@ def test_google_accounts_defined():
     """Test that Google accounts are properly defined."""
     from src.config import GOOGLE_ACCOUNTS, GOOGLE_EMAILS, GOOGLE_TIER1, GOOGLE_TIER2
 
-    assert len(GOOGLE_ACCOUNTS) == 6
+    assert len(GOOGLE_ACCOUNTS) == 5
     assert "arc" in GOOGLE_ACCOUNTS
     assert "personal" in GOOGLE_ACCOUNTS
 

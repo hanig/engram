@@ -331,8 +331,11 @@ class CalendarClient:
             result["end"] = datetime.fromisoformat(end.get("dateTime", start["dateTime"]))
             result["is_all_day"] = False
         elif "date" in start:
-            result["start"] = datetime.fromisoformat(start["date"])
-            result["end"] = datetime.fromisoformat(end.get("date", start["date"]))
+            # All-day events: parse as date and add UTC timezone
+            start_dt = datetime.fromisoformat(start["date"])
+            end_dt = datetime.fromisoformat(end.get("date", start["date"]))
+            result["start"] = start_dt.replace(tzinfo=timezone.utc)
+            result["end"] = end_dt.replace(tzinfo=timezone.utc)
             result["is_all_day"] = True
 
         # Parse organizer

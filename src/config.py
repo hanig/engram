@@ -22,20 +22,19 @@ def get_env(key: str, default: str | None = None, required: bool = False) -> str
 
 
 # Google Account Configuration
-GOOGLE_ACCOUNTS = ["arc", "personal", "tahoe", "therna", "exai", "amplify"]
+GOOGLE_ACCOUNTS = ["arc", "personal", "tahoe", "therna", "amplify"]
 
 GOOGLE_EMAILS = {
     "arc": "hani.goodarzi@arcinstitute.org",
     "personal": "hani.goodarzi@gmail.com",
     "tahoe": "hani@tahoebio.ai",
     "therna": "hani.goodarzi@therna.com",
-    "exai": "hanig@exai.bio",
     "amplify": "hani@amplifypartners.com",
 }
 
 # Tiered search configuration - Tier 1 accounts are searched first
 GOOGLE_TIER1 = ["arc", "personal"]
-GOOGLE_TIER2 = ["tahoe", "therna", "exai", "amplify"]
+GOOGLE_TIER2 = ["tahoe", "therna", "amplify"]
 
 # Google OAuth credentials
 GOOGLE_CLIENT_ID = get_env("GOOGLE_CLIENT_ID")

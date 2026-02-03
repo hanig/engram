@@ -151,7 +151,7 @@ class SemanticIndexer:
             # Store
             ids = [f"{content_id}:chunk:{c.chunk_index}" for c in chunks]
             documents = texts
-            metadatas = [c.metadata or {} for c in chunks]
+            metadatas = [self._sanitize_metadata(c.metadata or {}) for c in chunks]
 
             self.vector_store.add(
                 collection=content_type,
@@ -227,6 +227,35 @@ class SemanticIndexer:
             where={"source_id": content_id},
         )
 
+    def _sanitize_metadata(self, metadata: dict) -> dict:
+        """Sanitize metadata for ChromaDB storage.
+
+        ChromaDB only accepts scalar values (str, int, float, bool, None).
+        Lists are converted to comma-separated strings.
+
+        Args:
+            metadata: Raw metadata dictionary.
+
+        Returns:
+            Sanitized metadata dictionary.
+        """
+        sanitized = {}
+        for key, value in metadata.items():
+            if value is None:
+                continue  # Skip None values
+            elif isinstance(value, list):
+                # Convert lists to comma-separated strings
+                sanitized[key] = ", ".join(str(v) for v in value)
+            elif isinstance(value, dict):
+                # Skip nested dicts (not supported by ChromaDB)
+                continue
+            elif isinstance(value, (str, int, float, bool)):
+                sanitized[key] = value
+            else:
+                # Convert other types to string
+                sanitized[key] = str(value)
+        return sanitized
+
     def _chunk_content(self, content: dict) -> list[Chunk]:
         """Chunk content based on its type.
 
@@ -244,15 +273,15 @@ class SemanticIndexer:
         if not body:
             return []
 
-        # Add source metadata
-        base_metadata = {
+        # Add source metadata and sanitize for ChromaDB
+        base_metadata = self._sanitize_metadata({
             "source_id": content["id"],
             "source_type": content_type,
             "title": title,
             "source_account": content.get("source_account"),
             "timestamp": str(content.get("timestamp")) if content.get("timestamp") else None,
             **metadata,
-        }
+        })
 
         # Use appropriate chunker
         if content_type == "email":
@@ -317,7 +346,8 @@ class SemanticIndexer:
 
                     ids.append(chunk_id)
                     documents.append(chunk.text)
-                    metadatas.append(chunk.metadata or {})
+                    # Sanitize metadata for ChromaDB
+                    metadatas.append(self._sanitize_metadata(chunk.metadata or {}))
 
                 # Store in vector store
                 self.vector_store.add(
