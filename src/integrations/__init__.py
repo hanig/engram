@@ -10,6 +10,7 @@ from .github_client import GitHubClient
 from .notion_client import NotionClient
 from .slack import SlackClient
 from .todoist_client import TodoistClient
+from .zotero_client import ZoteroClient
 
 __all__ = [
     "get_credentials",
@@ -23,4 +24,5 @@ __all__ = [
     "NotionClient",
     "SlackClient",
     "TodoistClient",
+    "ZoteroClient",
 ]

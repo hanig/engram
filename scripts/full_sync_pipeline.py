@@ -18,6 +18,7 @@ from src.indexers.gmail_indexer import GmailIndexer
 from src.indexers.notion_indexer import NotionIndexer
 from src.indexers.slack_indexer import SlackIndexer
 from src.indexers.todoist_indexer import TodoistIndexer
+from src.indexers.zotero_indexer import ZoteroIndexer
 from src.knowledge_graph import KnowledgeGraph
 from src.semantic.semantic_indexer import SemanticIndexer
 
@@ -167,6 +168,27 @@ def sync_todoist(kg: KnowledgeGraph) -> dict:
         return {"error": str(e)}
 
 
+def sync_zotero(kg: KnowledgeGraph) -> dict:
+    """Sync Zotero data.
+
+    Args:
+        kg: Knowledge graph instance.
+
+    Returns:
+        Statistics dictionary.
+    """
+    logger.info(f"\n{'=' * 60}")
+    logger.info("Syncing Zotero")
+    logger.info(f"{'=' * 60}")
+
+    indexer = ZoteroIndexer(kg)
+    try:
+        return indexer.index_all()
+    except Exception as e:
+        logger.error(f"Zotero error: {e}")
+        return {"error": str(e)}
+
+
 def build_semantic_index(kg: KnowledgeGraph) -> dict:
     """Build semantic embeddings index.
 
@@ -217,6 +239,11 @@ def main():
         "--skip-todoist",
         action="store_true",
         help="Skip Todoist sync",
+    )
+    parser.add_argument(
+        "--skip-zotero",
+        action="store_true",
+        help="Skip Zotero sync",
     )
     parser.add_argument(
         "--skip-semantic",
@@ -271,6 +298,12 @@ def main():
         all_stats["todoist"] = sync_todoist(kg)
     else:
         logger.info("Skipping Todoist sync")
+
+    # Sync Zotero
+    if not args.skip_zotero:
+        all_stats["zotero"] = sync_zotero(kg)
+    else:
+        logger.info("Skipping Zotero sync")
 
     # Build semantic index
     if not args.skip_semantic:

@@ -18,6 +18,7 @@ from src.indexers.gmail_indexer import GmailIndexer
 from src.indexers.notion_indexer import NotionIndexer
 from src.indexers.slack_indexer import SlackIndexer
 from src.indexers.todoist_indexer import TodoistIndexer
+from src.indexers.zotero_indexer import ZoteroIndexer
 from src.knowledge_graph import KnowledgeGraph
 from src.semantic.semantic_indexer import SemanticIndexer
 
@@ -150,6 +151,24 @@ def delta_sync_todoist(kg: KnowledgeGraph) -> dict:
         return {"error": str(e)}
 
 
+def delta_sync_zotero(kg: KnowledgeGraph) -> dict:
+    """Delta sync Zotero data.
+
+    Args:
+        kg: Knowledge graph instance.
+
+    Returns:
+        Statistics dictionary.
+    """
+    logger.info("Delta sync for Zotero")
+    indexer = ZoteroIndexer(kg)
+    try:
+        return indexer.index_delta(days_back=7)
+    except Exception as e:
+        logger.error(f"Zotero delta error: {e}")
+        return {"error": str(e)}
+
+
 def update_semantic_index(kg: KnowledgeGraph) -> dict:
     """Update semantic index with new content.
 
@@ -201,6 +220,11 @@ def main():
         help="Skip Todoist sync",
     )
     parser.add_argument(
+        "--skip-zotero",
+        action="store_true",
+        help="Skip Zotero sync",
+    )
+    parser.add_argument(
         "--skip-semantic",
         action="store_true",
         help="Skip semantic index update",
@@ -228,6 +252,9 @@ def main():
 
     if not args.skip_todoist:
         all_stats["todoist"] = delta_sync_todoist(kg)
+
+    if not args.skip_zotero:
+        all_stats["zotero"] = delta_sync_zotero(kg)
 
     if not args.skip_semantic:
         all_stats["semantic"] = update_semantic_index(kg)

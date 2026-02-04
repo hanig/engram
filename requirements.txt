@@ -13,6 +13,9 @@ PyGithub>=2.1.0
 slack_sdk>=3.20.0
 slack_bolt>=1.18.0
 
+# Zotero
+pyzotero>=1.5.0
+
 # AI/ML
 openai>=1.0.0
 anthropic>=0.18.0

@@ -104,6 +104,12 @@ NOTION_WORKSPACE = get_env("NOTION_WORKSPACE", "default")
 # Todoist Configuration
 TODOIST_API_KEY = get_env("TODOIST_API_KEY")
 
+# Zotero Configuration
+ZOTERO_API_KEY = get_env("ZOTERO_API_KEY")
+ZOTERO_USER_ID = get_env("ZOTERO_USER_ID")
+ZOTERO_LIBRARY_TYPE = get_env("ZOTERO_LIBRARY_TYPE", "user")
+ZOTERO_DEFAULT_COLLECTION = get_env("ZOTERO_DEFAULT_COLLECTION", "GoodarziLab")
+
 # Authorized Slack users (comma-separated user IDs)
 _authorized_users = get_env("SLACK_AUTHORIZED_USERS", "")
 SLACK_AUTHORIZED_USERS = [u.strip() for u in _authorized_users.split(",") if u.strip()]

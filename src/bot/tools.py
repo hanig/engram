@@ -277,6 +277,54 @@ class AddNotionCommentTool(BaseModel):
     content: str = Field(description="Comment text")
 
 
+# --- Zotero Tools ---
+
+class SearchZoteroPapersTool(BaseModel):
+    """Search papers in Zotero library by title, author, tag, or keyword."""
+
+    query: str = Field(description="Search query (title, author, keyword)")
+    max_results: int = Field(default=10, description="Maximum number of results")
+
+
+class GetZoteroPaperTool(BaseModel):
+    """Get full details of a Zotero paper including abstract, metadata, and notes."""
+
+    item_key: str = Field(description="Zotero item key")
+
+
+class ListRecentPapersTool(BaseModel):
+    """List papers recently added to Zotero library."""
+
+    days: int = Field(default=7, description="Look back N days")
+    max_results: int = Field(default=20, description="Maximum number of results")
+
+
+class SearchPapersByTagTool(BaseModel):
+    """Search Zotero papers by tag."""
+
+    tag: str = Field(description="Tag to search for")
+    max_results: int = Field(default=20, description="Maximum number of results")
+
+
+class GetZoteroCollectionTool(BaseModel):
+    """Get papers in a specific Zotero collection/folder."""
+
+    collection_name: str = Field(description="Collection name")
+    max_results: int = Field(default=50, description="Maximum number of results")
+
+
+class AddZoteroPaperTool(BaseModel):
+    """Add a paper to Zotero library by DOI or URL."""
+
+    identifier: str = Field(
+        description="DOI (e.g., 10.1038/xxx) or URL to paper"
+    )
+    collection: str = Field(
+        default="GoodarziLab",
+        description="Collection name to add to",
+    )
+
+
 # --- Response Tool ---
 
 class RespondToUserTool(BaseModel):
@@ -308,6 +356,12 @@ ALL_TOOLS: list[type[BaseModel]] = [
     SearchNotionTool,
     CreateNotionPageTool,
     AddNotionCommentTool,
+    SearchZoteroPapersTool,
+    GetZoteroPaperTool,
+    ListRecentPapersTool,
+    SearchPapersByTagTool,
+    GetZoteroCollectionTool,
+    AddZoteroPaperTool,
     RespondToUserTool,
 ]
 
@@ -334,6 +388,12 @@ TOOL_NAME_MAP = {
     "SearchNotionTool": "search_notion",
     "CreateNotionPageTool": "create_notion_page",
     "AddNotionCommentTool": "add_notion_comment",
+    "SearchZoteroPapersTool": "search_zotero_papers",
+    "GetZoteroPaperTool": "get_zotero_paper",
+    "ListRecentPapersTool": "list_recent_papers",
+    "SearchPapersByTagTool": "search_papers_by_tag",
+    "GetZoteroCollectionTool": "get_zotero_collection",
+    "AddZoteroPaperTool": "add_zotero_paper",
     "RespondToUserTool": "respond_to_user",
 }
 

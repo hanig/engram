@@ -126,6 +126,7 @@ class ToolExecutor:
         self._query_engine = None
         self._notion_client = None
         self._todoist_client = None
+        self._zotero_client = None
 
     @property
     def semantic_indexer(self):
@@ -174,6 +175,14 @@ class ToolExecutor:
             from ..integrations.todoist_client import TodoistClient
             self._todoist_client = TodoistClient()
         return self._todoist_client
+
+    @property
+    def zotero_client(self):
+        """Lazy load Zotero client."""
+        if self._zotero_client is None:
+            from ..integrations.zotero_client import ZoteroClient
+            self._zotero_client = ZoteroClient()
+        return self._zotero_client
 
     def execute(self, tool_name: str, arguments: dict[str, Any]) -> ToolResult:
         """Execute a tool and return the result.
@@ -576,6 +585,166 @@ class ToolExecutor:
             "page_id": args["page_id"],
             "message": "Comment added successfully",
         })
+
+    def _execute_search_zotero_papers(self, args: dict) -> ToolResult:
+        """Search papers in Zotero library."""
+        results = self.zotero_client.search_items(
+            query=args["query"],
+            max_results=args.get("max_results", 10),
+        )
+
+        # Format results for display
+        formatted = []
+        for item in results:
+            formatted.append({
+                "key": item["key"],
+                "title": item["title"],
+                "authors": item.get("authors", []),
+                "year": item.get("year"),
+                "journal": item.get("journal"),
+                "doi": item.get("doi"),
+                "tags": item.get("tags", []),
+            })
+
+        return ToolResult(data={
+            "query": args["query"],
+            "result_count": len(formatted),
+            "papers": formatted,
+        })
+
+    def _execute_get_zotero_paper(self, args: dict) -> ToolResult:
+        """Get full details of a Zotero paper."""
+        item = self.zotero_client.get_item(args["item_key"])
+
+        # Get notes for this item
+        notes = self.zotero_client.get_item_notes(args["item_key"])
+        note_texts = [n.get("note", "") for n in notes]
+
+        return ToolResult(data={
+            "key": item["key"],
+            "title": item["title"],
+            "abstract": item.get("abstract", ""),
+            "authors": item.get("authors", []),
+            "year": item.get("year"),
+            "journal": item.get("journal"),
+            "volume": item.get("volume"),
+            "issue": item.get("issue"),
+            "pages": item.get("pages"),
+            "doi": item.get("doi"),
+            "url": item.get("url"),
+            "tags": item.get("tags", []),
+            "notes": note_texts,
+            "date_added": item.get("date_added"),
+        })
+
+    def _execute_list_recent_papers(self, args: dict) -> ToolResult:
+        """List recently added papers."""
+        items = self.zotero_client.get_recent_items(days=args.get("days", 7))
+
+        # Limit results
+        max_results = args.get("max_results", 20)
+        items = items[:max_results]
+
+        formatted = []
+        for item in items:
+            formatted.append({
+                "key": item["key"],
+                "title": item["title"],
+                "authors": item.get("authors", []),
+                "year": item.get("year"),
+                "date_added": item.get("date_added"),
+                "tags": item.get("tags", []),
+            })
+
+        return ToolResult(data={
+            "days": args.get("days", 7),
+            "paper_count": len(formatted),
+            "papers": formatted,
+        })
+
+    def _execute_search_papers_by_tag(self, args: dict) -> ToolResult:
+        """Search papers by tag."""
+        items = self.zotero_client.get_items_by_tag(
+            tag=args["tag"],
+            max_results=args.get("max_results", 20),
+        )
+
+        formatted = []
+        for item in items:
+            formatted.append({
+                "key": item["key"],
+                "title": item["title"],
+                "authors": item.get("authors", []),
+                "year": item.get("year"),
+                "tags": item.get("tags", []),
+            })
+
+        return ToolResult(data={
+            "tag": args["tag"],
+            "paper_count": len(formatted),
+            "papers": formatted,
+        })
+
+    def _execute_get_zotero_collection(self, args: dict) -> ToolResult:
+        """Get papers in a Zotero collection."""
+        collection = self.zotero_client.get_collection_by_name(args["collection_name"])
+
+        if not collection:
+            return ToolResult(
+                success=False,
+                error=f"Collection '{args['collection_name']}' not found",
+            )
+
+        items = self.zotero_client.get_collection_items(
+            collection_key=collection["key"],
+            max_results=args.get("max_results", 50),
+        )
+
+        formatted = []
+        for item in items:
+            formatted.append({
+                "key": item["key"],
+                "title": item["title"],
+                "authors": item.get("authors", []),
+                "year": item.get("year"),
+                "tags": item.get("tags", []),
+            })
+
+        return ToolResult(data={
+            "collection": collection["name"],
+            "paper_count": len(formatted),
+            "papers": formatted,
+        })
+
+    def _execute_add_zotero_paper(self, args: dict) -> ToolResult:
+        """Add a paper to Zotero by DOI or URL."""
+        identifier = args["identifier"].strip()
+        collection = args.get("collection", "GoodarziLab")
+
+        # Determine if it's a DOI or URL
+        is_doi = (
+            identifier.startswith("10.") or
+            "doi.org" in identifier or
+            identifier.lower().startswith("doi:")
+        )
+
+        try:
+            if is_doi:
+                item = self.zotero_client.add_item_by_doi(identifier, collection)
+            else:
+                item = self.zotero_client.add_item_by_url(identifier, collection)
+
+            return ToolResult(data={
+                "key": item["key"],
+                "title": item["title"],
+                "collection": collection,
+                "message": f"Paper added to Zotero: {item['title']}",
+            })
+        except Exception as e:
+            return ToolResult(
+                success=False,
+                error=f"Failed to add paper: {str(e)}",
+            )
 
 
 class AgentExecutor:

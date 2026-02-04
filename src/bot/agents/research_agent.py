@@ -16,6 +16,8 @@ RESEARCH_KEYWORDS = {
     "drive", "note", "summary", "briefing", "overview",
     "task", "tasks", "todoist", "todo", "to-do",
     "notion", "page", "database",
+    "paper", "papers", "zotero", "reference", "references",
+    "citation", "article", "journal", "doi", "publication",
 }
 
 
@@ -48,6 +50,12 @@ class ResearchAgent(BaseAgent):
             "SearchNotionTool",
             "CreateNotionPageTool",
             "AddNotionCommentTool",
+            "SearchZoteroPapersTool",
+            "GetZoteroPaperTool",
+            "ListRecentPapersTool",
+            "SearchPapersByTagTool",
+            "GetZoteroCollectionTool",
+            "AddZoteroPaperTool",
             "RespondToUserTool",
         ]
 
@@ -68,6 +76,7 @@ KNOWLEDGE GRAPH SOURCES:
 - Slack conversations
 - Todoist tasks
 - Notion pages and databases
+- Zotero papers and references
 
 CAPABILITIES:
 - Semantic search across all indexed content
@@ -77,6 +86,7 @@ CAPABILITIES:
 - Generate daily briefings
 - Get, create, and complete Todoist tasks
 - Search and create Notion pages
+- Search, browse, and add papers to Zotero library
 
 SEARCH STRATEGIES:
 1. Start with semantic search for broad queries
@@ -93,15 +103,24 @@ NOTION:
 - Use SearchNotionTool for Notion page/database queries
 - Use CreateNotionPageTool to add pages to databases
 
+ZOTERO PAPERS:
+- Use SearchZoteroPapersTool for general paper searches (title, author, keyword)
+- Use ListRecentPapersTool to see recently added papers
+- Use SearchPapersByTagTool to find papers by tag
+- Use GetZoteroCollectionTool to browse papers in a collection/folder
+- Use GetZoteroPaperTool to get full details including abstract and notes
+- Use AddZoteroPaperTool to add papers by DOI or URL (default collection: GoodarziLab)
+
 GUIDELINES:
 1. Summarize findings concisely
 2. Include source/type information for traceability
 3. For document searches, show title and relevant excerpt
 4. For people, show their recent interactions
-5. Use RespondToUserTool to send your final response
+5. For papers, show title, authors, year, and tags
+6. Use RespondToUserTool to send your final response
 
 SEMANTIC SEARCH TIPS:
-- Use content_types filter: email, calendar_event, drive_file, github, slack
+- Use content_types filter: email, calendar_event, drive_file, github, slack, paper
 - Use source filter for specific Google accounts
 - Limit results to avoid overwhelming responses
 
@@ -124,6 +143,10 @@ DAILY BRIEFING:
 
         # High confidence for Notion queries
         if "notion" in message_lower:
+            return 0.9
+
+        # High confidence for Zotero/paper queries
+        if any(kw in message_lower for kw in ["zotero", "paper", "papers", "reference", "references", "citation", "doi"]):
             return 0.9
 
         # Check for research keywords

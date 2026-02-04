@@ -7,6 +7,7 @@ from .github_indexer import GitHubIndexer
 from .notion_indexer import NotionIndexer
 from .slack_indexer import SlackIndexer
 from .todoist_indexer import TodoistIndexer
+from .zotero_indexer import ZoteroIndexer
 
 __all__ = [
     "GmailIndexer",
@@ -16,4 +17,5 @@ __all__ = [
     "NotionIndexer",
     "SlackIndexer",
     "TodoistIndexer",
+    "ZoteroIndexer",
 ]

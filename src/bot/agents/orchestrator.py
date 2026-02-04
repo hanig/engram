@@ -58,6 +58,9 @@ PERSONAL_DATA_KEYWORDS = [
     "task", "tasks", "todoist", "to-do", "todo", "to do",
     # Notion
     "notion", "notion page", "notion database",
+    # Zotero
+    "zotero", "paper", "papers", "reference", "references", "citation",
+    "doi", "my papers", "my library", "add paper",
 ]
 
 
