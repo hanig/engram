@@ -1,12 +1,14 @@
 # Hani Replica
 
-A personal knowledge graph system that aggregates data from multiple Google accounts, GitHub, and Slack, with semantic search and an interactive Slack bot interface powered by intelligent agents.
+A personal knowledge graph system that aggregates data from multiple Google accounts, GitHub, Slack, Notion, Todoist, and Zotero, with semantic search and an interactive Slack bot interface powered by intelligent agents.
 
 ## Features
 
 ### Core Capabilities
 - **Multi-Account Google Integration**: Sync Gmail, Google Drive, and Google Calendar from up to 6 accounts with tiered search (primary accounts searched first)
 - **Google Write Capabilities**: Send emails, create/modify calendar events, and comment on Google Docs
+- **Zotero Integration**: Search papers, add references by DOI/URL with automatic metadata extraction (CrossRef + page scraping)
+- **Notion & Todoist**: Search pages, manage tasks, create content
 - **Knowledge Graph**: SQLite-based storage of entities (people, repos, files) and content with relationship tracking
 - **Semantic Search**: OpenAI embeddings (text-embedding-3-large) with ChromaDB vector store for intelligent content retrieval
 - **Slack Bot**: Interactive assistant using Socket Mode (no public URL required)
@@ -54,10 +56,10 @@ A personal knowledge graph system that aggregates data from multiple Google acco
 │   (SQLite)           │           (ChromaDB)                      │
 ├──────────────────────┴──────────────────────────────────────────┤
 │                       Indexers                                   │
-│  Gmail │ Drive │ Calendar │ GitHub │ Slack                      │
+│  Gmail │ Drive │ Calendar │ GitHub │ Slack │ Zotero │ Notion    │
 ├─────────────────────────────────────────────────────────────────┤
 │                    Integrations                                  │
-│  Google (OAuth) │ GitHub (PAT) │ Slack (Bot Token)              │
+│  Google │ GitHub │ Slack │ Zotero │ Notion │ Todoist            │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -69,6 +71,7 @@ A personal knowledge graph system that aggregates data from multiple Google acco
 - Slack App with Socket Mode enabled
 - OpenAI API key (for embeddings)
 - Anthropic API key (for intent classification)
+- Zotero API key (optional, for paper management)
 
 ## Installation
 
@@ -162,6 +165,14 @@ OPENAI_API_KEY=sk-xxxxx
 # Anthropic API Key (for intent classification and agents)
 ANTHROPIC_API_KEY=sk-ant-xxxxx
 
+# Zotero API (optional - for paper management)
+# Get API key at: https://www.zotero.org/settings/keys
+# User ID is shown on the same page
+ZOTERO_API_KEY=xxxxx
+ZOTERO_USER_ID=12345678
+ZOTERO_LIBRARY_TYPE=user  # "user" for personal, "group" for shared library
+ZOTERO_DEFAULT_COLLECTION=MyCollection  # Default collection for new papers
+
 # Bot Mode: "intent" (legacy), "agent" (single agent), "multi_agent" (specialists)
 BOT_MODE=agent
 
@@ -212,6 +223,8 @@ This will:
 - Index Calendar events
 - Index GitHub repos, issues, and PRs
 - Index Slack messages
+- Index Zotero papers, notes, and collections
+- Index Notion pages and Todoist tasks
 - Generate embeddings for semantic search
 
 ### Daily Sync
@@ -292,6 +305,10 @@ Talk to the bot via DM or @mention in channels:
 | `Find documents about [topic]` | Search Google Drive files |
 | `Show my open PRs` | List your GitHub pull requests |
 | `What issues are assigned to me?` | List assigned GitHub issues |
+| `Search my papers for [topic]` | Search Zotero library |
+| `What papers did I add recently?` | List recent Zotero additions |
+| `Add this paper: [DOI or URL]` | Add paper to Zotero with metadata |
+| `Find papers by [author]` | Search papers by author |
 | `What did I miss yesterday?` | Daily briefing for a specific date |
 | `Help` | Show available commands |
 
@@ -347,14 +364,20 @@ hani_replica/
 │   │   ├── gdocs.py              # Docs API client (comments)
 │   │   ├── gcalendar.py          # Calendar API client (read + write)
 │   │   ├── github_client.py      # GitHub API client
-│   │   └── slack.py              # Slack API client
+│   │   ├── slack.py              # Slack API client
+│   │   ├── zotero_client.py      # Zotero API client
+│   │   ├── notion_client.py      # Notion API client
+│   │   └── todoist_client.py     # Todoist API client
 │   │
 │   ├── indexers/                 # Data indexing pipelines
 │   │   ├── gmail_indexer.py
 │   │   ├── gdrive_indexer.py
 │   │   ├── gcal_indexer.py
 │   │   ├── github_indexer.py
-│   │   └── slack_indexer.py
+│   │   ├── slack_indexer.py
+│   │   ├── zotero_indexer.py     # Papers, notes, collections
+│   │   ├── notion_indexer.py
+│   │   └── todoist_indexer.py
 │   │
 │   ├── semantic/                 # Semantic search layer
 │   │   ├── embedder.py           # OpenAI embeddings
