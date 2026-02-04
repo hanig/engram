@@ -6,6 +6,7 @@ A personal knowledge graph system that aggregates data from multiple Google acco
 
 ### Core Capabilities
 - **Multi-Account Google Integration**: Sync Gmail, Google Drive, and Google Calendar from up to 6 accounts with tiered search (primary accounts searched first)
+- **Google Write Capabilities**: Send emails, create/modify calendar events, and comment on Google Docs
 - **Knowledge Graph**: SQLite-based storage of entities (people, repos, files) and content with relationship tracking
 - **Semantic Search**: OpenAI embeddings (text-embedding-3-large) with ChromaDB vector store for intelligent content retrieval
 - **Slack Bot**: Interactive assistant using Socket Mode (no public URL required)
@@ -45,7 +46,7 @@ A personal knowledge graph system that aggregates data from multiple Google acco
 │  (Task Planning)      │  Calendar │ Email │ GitHub │ Research   │
 ├───────────────────────┴─────────────────────────────────────────┤
 │                      Tools Layer                                 │
-│  search_emails │ check_calendar │ find_availability │ ...       │
+│  search_emails │ send_email │ create_event │ add_comment │ ...  │
 ├─────────────────────────────────────────────────────────────────┤
 │              Query Engine + Semantic Search                      │
 ├──────────────────────┬──────────────────────────────────────────┤
@@ -100,9 +101,17 @@ A personal knowledge graph system that aggregates data from multiple Google acco
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com)
 2. Create a new project
-3. Enable APIs: Gmail, Google Drive, Google Calendar
+3. Enable APIs: Gmail, Google Drive, Google Calendar, Google Docs
 4. Create OAuth 2.0 credentials (Desktop application)
 5. Download and note the `client_id` and `client_secret`
+
+**Required OAuth Scopes** (configured automatically):
+- `gmail.readonly` - Read emails
+- `gmail.send` - Send emails
+- `drive.readonly` - Read Drive files
+- `drive.file` - Comment on Docs
+- `calendar` - Full calendar access (read/write)
+- `documents` - Access Google Docs
 
 ### Slack App Setup
 
@@ -278,6 +287,8 @@ Talk to the bot via DM or @mention in channels:
 | `What's my schedule for tomorrow?` | Show tomorrow's calendar |
 | `When am I free this week?` | Find available time slots |
 | `Search for emails about [topic]` | Semantic search across emails |
+| `Send an email to [person] about [topic]` | Compose and send an email |
+| `Create a meeting with [person] tomorrow at 2pm` | Create calendar events |
 | `Find documents about [topic]` | Search Google Drive files |
 | `Show my open PRs` | List your GitHub pull requests |
 | `What issues are assigned to me?` | List assigned GitHub issues |
@@ -331,9 +342,10 @@ hani_replica/
 │   ├── integrations/             # External service clients
 │   │   ├── google_auth.py        # OAuth flow
 │   │   ├── google_multi.py       # Multi-account manager
-│   │   ├── gmail.py              # Gmail API client
+│   │   ├── gmail.py              # Gmail API client (read + send)
 │   │   ├── gdrive.py             # Drive API client
-│   │   ├── gcalendar.py          # Calendar API client
+│   │   ├── gdocs.py              # Docs API client (comments)
+│   │   ├── gcalendar.py          # Calendar API client (read + write)
 │   │   ├── github_client.py      # GitHub API client
 │   │   └── slack.py              # Slack API client
 │   │
@@ -425,7 +437,9 @@ launchctl load ~/Library/LaunchAgents/com.hani.replica.bot.plist
 - **Credentials**: All tokens and OAuth credentials are stored locally in `credentials/` (gitignored)
 - **Data**: All indexed data stays local in `data/` (gitignored)
 - **Bot Access**: Only Slack users listed in `SLACK_AUTHORIZED_USERS` can interact with the bot
-- **Email Drafts**: The bot can create email drafts but never sends emails automatically
+- **Email Sending**: The bot can send emails but will confirm with you before sending
+- **Calendar Events**: The bot can create/modify events but confirms before making changes
+- **Doc Comments**: The bot can add comments to Google Docs you have access to
 - **GitHub Actions**: Issue creation requires explicit confirmation
 
 ### Prompt Injection Protection
