@@ -9,7 +9,7 @@ from slack_bolt import App
 
 from ..config import SLACK_AUTHORIZED_USERS, BOT_MODE, ENABLE_STREAMING, STREAMING_UPDATE_INTERVAL
 from .conversation import ConversationManager
-from .formatters import format_error_message, format_help_message
+from .formatters import format_error_message, format_help_message, markdown_to_slack
 from .intent_router import IntentRouter, Intent
 from .security import SecurityGuard, SecurityLevel, ThreatType, get_security_guard
 from .audit import AuditLogger, AuditEventType, get_audit_logger
@@ -780,10 +780,12 @@ def _update_message_safe(client, channel_id: str, message_ts: str, text: str) ->
         text: New message text.
     """
     try:
+        # Convert markdown to Slack mrkdwn format
+        slack_text = markdown_to_slack(text)
         client.chat_update(
             channel=channel_id,
             ts=message_ts,
-            text=text,
+            text=slack_text,
         )
     except Exception as e:
         logger.warning(f"Failed to update message: {e}")
@@ -888,8 +890,8 @@ def _send_response(say, response: dict, thread_ts: str) -> None:
 
     if "blocks" in response:
         kwargs["blocks"] = response["blocks"]
-        kwargs["text"] = response.get("text", "")
+        kwargs["text"] = markdown_to_slack(response.get("text", ""))
     else:
-        kwargs["text"] = response.get("text", "")
+        kwargs["text"] = markdown_to_slack(response.get("text", ""))
 
     say(**kwargs)

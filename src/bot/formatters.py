@@ -1,7 +1,44 @@
 """Slack Block Kit formatters for bot responses."""
 
+import re
 from datetime import datetime
 from typing import Any
+
+
+def markdown_to_slack(text: str) -> str:
+    """Convert standard markdown to Slack mrkdwn format.
+
+    Args:
+        text: Text with standard markdown formatting.
+
+    Returns:
+        Text with Slack mrkdwn formatting.
+    """
+    if not text:
+        return text
+
+    # Convert bold: **text** or __text__ -> *text*
+    text = re.sub(r'\*\*(.+?)\*\*', r'*\1*', text)
+    text = re.sub(r'__(.+?)__', r'*\1*', text)
+
+    # Convert italic: *text* (single) -> _text_ (but not if already bold)
+    # This is tricky - we need to avoid converting *bold* to _bold_
+    # Only convert single asterisks that aren't part of double asterisks
+    # Actually, after converting **bold** to *bold*, single * for italic becomes ambiguous
+    # So we only convert _text_ style italic (underscore) which is less common in markdown
+
+    # Convert links: [text](url) -> <url|text>
+    text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<\2|\1>', text)
+
+    # Convert inline code: `code` stays the same (Slack supports this)
+
+    # Convert headers: # Header -> *Header*
+    text = re.sub(r'^#{1,6}\s+(.+)$', r'*\1*', text, flags=re.MULTILINE)
+
+    # Convert strikethrough: ~~text~~ -> ~text~
+    text = re.sub(r'~~(.+?)~~', r'~\1~', text)
+
+    return text
 
 
 def format_help_message() -> str:
