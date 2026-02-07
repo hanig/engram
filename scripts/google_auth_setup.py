@@ -92,7 +92,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Google OAuth setup for Hani Replica"
+        description="Google OAuth setup for Engram"
     )
     parser.add_argument(
         "--status",

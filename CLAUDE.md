@@ -1,11 +1,11 @@
-# Hani Replica - Claude Code Instructions
+# Engram - Claude Code Instructions
 
 Personal knowledge graph system aggregating data from 6 Google accounts, GitHub, and Slack with semantic search and Slack bot interface.
 
 ## Project Structure
 
 ```
-hani_replica/
+engram/
 ├── src/
 │   ├── config.py                 # Environment + account configuration
 │   ├── knowledge_graph.py        # SQLite-based storage

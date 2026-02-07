@@ -1,1 +1,1 @@
-"""Tests for Hani Replica."""
+"""Tests for Engram."""

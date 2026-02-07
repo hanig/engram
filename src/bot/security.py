@@ -1,4 +1,4 @@
-"""Security utilities for the Hani Replica bot.
+"""Security utilities for the Engram bot.
 
 Provides input sanitization, rate limiting, and action validation
 to protect against prompt injection and abuse.

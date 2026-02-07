@@ -1,4 +1,4 @@
-"""MCP (Model Context Protocol) integration for Hani Replica."""
+"""MCP (Model Context Protocol) integration for Engram."""
 
 from .server import create_mcp_server, run_server
 from .client import MCPClient, MCPClientManager, MCPServerConfig, MCPTool, COMMON_SERVERS

@@ -213,7 +213,7 @@ def build_semantic_index(kg: KnowledgeGraph) -> dict:
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description="Full sync pipeline for Hani Replica"
+        description="Full sync pipeline for Engram"
     )
     parser.add_argument(
         "--skip-google",

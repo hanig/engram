@@ -1,4 +1,4 @@
-"""Audit logging for the Hani Replica bot.
+"""Audit logging for the Engram bot.
 
 Provides comprehensive logging of all bot interactions, tool executions,
 and security events for compliance and debugging.

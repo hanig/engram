@@ -329,7 +329,7 @@ class ZoteroClient:
         import httpx
 
         url = f"https://api.crossref.org/works/{doi}"
-        headers = {"User-Agent": "HaniReplica/1.0 (mailto:hani@example.com)"}
+        headers = {"User-Agent": "Engram/1.0"}
 
         try:
             with httpx.Client() as client:

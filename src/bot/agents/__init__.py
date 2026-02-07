@@ -1,4 +1,4 @@
-"""Multi-agent architecture for Hani Replica.
+"""Multi-agent architecture for Engram.
 
 This module provides specialized agents for different domains (calendar, email,
 GitHub, research) and an orchestrator that routes tasks to the appropriate

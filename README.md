@@ -1,4 +1,4 @@
-# Hani Replica
+# Engram
 
 A personal knowledge graph system that aggregates data from multiple Google accounts, GitHub, Slack, Notion, Todoist, and Zotero, with semantic search and an interactive Slack bot interface powered by intelligent agents.
 
@@ -77,8 +77,8 @@ A personal knowledge graph system that aggregates data from multiple Google acco
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/YOUR_USERNAME/hani_replica.git
-   cd hani_replica
+   git clone https://github.com/YOUR_USERNAME/engram.git
+   cd engram
    ```
 
 2. **Create virtual environment**
@@ -366,7 +366,7 @@ Bot: Created event "Meeting" on 2024-02-04 at 2:00 PM.
 ## Project Structure
 
 ```
-hani_replica/
+engram/
 ├── src/
 │   ├── config.py                 # Configuration and environment
 │   ├── knowledge_graph.py        # SQLite storage layer
@@ -459,14 +459,14 @@ Set up launchd jobs for automatic syncing:
 
 **Daily sync at 6 AM:**
 ```bash
-cp docs/com.replica.daily.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.replica.daily.plist
+cp docs/com.engram.daily.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/com.engram.daily.plist
 ```
 
 **Keep bot running:**
 ```bash
-cp docs/com.replica.bot.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.replica.bot.plist
+cp docs/com.engram.bot.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/com.engram.bot.plist
 ```
 
 ## Security
@@ -533,10 +533,10 @@ Add to `~/.claude/mcp.json`:
 ```json
 {
   "servers": {
-    "hani-replica": {
+    "engram": {
       "command": "python",
       "args": ["-m", "src.mcp.server"],
-      "cwd": "/path/to/hani_replica"
+      "cwd": "/path/to/engram"
     }
   }
 }
@@ -559,7 +559,7 @@ pytest --cov=src tests/
 
 **Check logs:**
 ```bash
-tail -f logs/hani_replica.log
+tail -f logs/engram.log
 ```
 
 **Query the knowledge graph directly:**

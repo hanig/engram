@@ -3,17 +3,17 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.hani.replica.bot</string>
+    <string>com.engram.bot</string>
 
     <key>ProgramArguments</key>
     <array>
         <string>/usr/bin/env</string>
         <string>python3</string>
-        <string>/Users/hani/hani_replica/scripts/run_bot.py</string>
+        <string>/path/to/engram/scripts/run_bot.py</string>
     </array>
 
     <key>WorkingDirectory</key>
-    <string>/Users/hani/hani_replica</string>
+    <string>/path/to/engram</string>
 
     <!-- Keep the bot running -->
     <key>KeepAlive</key>
@@ -28,10 +28,10 @@
     <integer>30</integer>
 
     <key>StandardOutPath</key>
-    <string>/Users/hani/hani_replica/logs/bot.log</string>
+    <string>/path/to/engram/logs/bot.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/Users/hani/hani_replica/logs/bot_error.log</string>
+    <string>/path/to/engram/logs/bot_error.log</string>
 
     <key>EnvironmentVariables</key>
     <dict>
@@ -43,10 +43,10 @@
 <!--
 Installation:
 1. Copy this file to ~/Library/LaunchAgents/
-2. Load with: launchctl load ~/Library/LaunchAgents/com.hani.replica.bot.plist
-3. Check status: launchctl list | grep hani.replica.bot
+2. Load with: launchctl load ~/Library/LaunchAgents/com.engram.bot.plist
+3. Check status: launchctl list | grep engram.bot
 
-To stop: launchctl stop com.hani.replica.bot
-To unload: launchctl unload ~/Library/LaunchAgents/com.hani.replica.bot.plist
-To check logs: tail -f ~/hani_replica/logs/bot.log
+To stop: launchctl stop com.engram.bot
+To unload: launchctl unload ~/Library/LaunchAgents/com.engram.bot.plist
+To check logs: tail -f ~/engram/logs/bot.log
 -->

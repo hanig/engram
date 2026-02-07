@@ -1,4 +1,4 @@
-"""MCP Server exposing Hani Replica capabilities as tools.
+"""MCP Server exposing Engram capabilities as tools.
 
 This server exposes the knowledge graph, calendar, email, and search
 capabilities via the Model Context Protocol, allowing Claude Desktop,
@@ -99,7 +99,7 @@ def create_mcp_server() -> Server:
     Returns:
         Configured MCP Server instance.
     """
-    server = Server("hani-replica")
+    server = Server("engram")
 
     @server.list_tools()
     async def list_tools() -> ListToolsResult:

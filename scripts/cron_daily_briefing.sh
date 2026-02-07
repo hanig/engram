@@ -1,8 +1,8 @@
 #!/bin/bash
 # Cron wrapper for daily briefing
-# Add to crontab: 0 6 * * * /Users/hani/hani_replica/scripts/cron_daily_briefing.sh
+# Add to crontab: 0 6 * * * /path/to/engram/scripts/cron_daily_briefing.sh
 
-cd /Users/hani/hani_replica
+cd /path/to/engram
 
 # Load environment (for API keys)
 source .env 2>/dev/null || true

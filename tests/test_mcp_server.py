@@ -75,7 +75,7 @@ class TestMCPServer:
         """Test server creation."""
         server = create_mcp_server()
         assert server is not None
-        assert server.name == "hani-replica"
+        assert server.name == "engram"
 
     def test_server_has_handlers_registered(self):
         """Test that server has handlers registered."""

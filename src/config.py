@@ -1,4 +1,4 @@
-"""Configuration management for Hani Replica."""
+"""Configuration management for Engram."""
 
 import json
 import os
@@ -157,7 +157,7 @@ MEM0_CHROMA_PATH = PROJECT_ROOT / get_env("MEM0_CHROMA_PATH", "data/mem0_chroma"
 
 # Logging configuration
 LOG_LEVEL = get_env("LOG_LEVEL", "INFO")
-LOG_FILE = PROJECT_ROOT / get_env("LOG_FILE", "logs/hani_replica.log")
+LOG_FILE = PROJECT_ROOT / get_env("LOG_FILE", "logs/engram.log")
 
 # Sync settings
 SYNC_BATCH_SIZE = int(get_env("SYNC_BATCH_SIZE", "100"))

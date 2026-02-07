@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Entry point for running the MCP server.
 
-This script starts the MCP server that exposes Hani Replica's capabilities
+This script starts the MCP server that exposes Engram's capabilities
 as tools that can be used by Claude Desktop, Cursor, and other MCP clients.
 
 Usage:
@@ -10,9 +10,9 @@ Usage:
 To connect from Claude Desktop, add to your claude_desktop_config.json:
 {
     "mcpServers": {
-        "hani-replica": {
+        "engram": {
             "command": "python",
-            "args": ["/path/to/hani_replica/scripts/run_mcp_server.py"],
+            "args": ["/path/to/engram/scripts/run_mcp_server.py"],
             "env": {
                 "OPENAI_API_KEY": "your-key",
                 "ANTHROPIC_API_KEY": "your-key",
@@ -50,7 +50,7 @@ def main():
     )
     logger = logging.getLogger(__name__)
 
-    logger.info("Starting Hani Replica MCP server...")
+    logger.info("Starting Engram MCP server...")
 
     # Import and run server
     from src.mcp import run_server

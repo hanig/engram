@@ -14,7 +14,7 @@ from src.config import LOG_FILE, LOG_LEVEL, ensure_directories, validate_config
 
 def main():
     """Main entry point."""
-    parser = argparse.ArgumentParser(description="Run the Hani Replica Slack bot")
+    parser = argparse.ArgumentParser(description="Run the Engram Slack bot")
     parser.add_argument(
         "--debug",
         action="store_true",
@@ -84,7 +84,7 @@ def main():
     # Import and run bot
     from src.bot.app import run_bot
 
-    logger.info("Starting Hani Replica Slack bot...")
+    logger.info("Starting Engram Slack bot...")
     logger.info(f"Log file: {LOG_FILE}")
     if args.mode:
         logger.info(f"Mode override: {args.mode}")

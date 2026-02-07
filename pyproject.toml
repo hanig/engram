@@ -3,15 +3,13 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "hani-replica"
+name = "engram"
 version = "0.1.0"
 description = "Personal knowledge graph with semantic search and Slack bot interface"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
-authors = [
-    {name = "Hani Goodarzi", email = "hani.goodarzi@gmail.com"}
-]
+authors = []
 keywords = ["knowledge-graph", "semantic-search", "slack-bot", "personal-assistant"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -50,11 +48,11 @@ dev = [
 ]
 
 [project.scripts]
-hani-sync = "scripts.full_sync_pipeline:main"
-hani-delta = "scripts.daily_delta_sync:main"
-hani-bot = "scripts.run_bot:main"
-hani-query = "scripts.query_knowledge:main"
-hani-briefing = "scripts.daily_briefing:main"
+engram-sync = "scripts.full_sync_pipeline:main"
+engram-delta = "scripts.daily_delta_sync:main"
+engram-bot = "scripts.run_bot:main"
+engram-query = "scripts.query_knowledge:main"
+engram-briefing = "scripts.daily_briefing:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

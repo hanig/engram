@@ -192,7 +192,7 @@ def update_semantic_index(kg: KnowledgeGraph) -> dict:
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description="Daily delta sync for Hani Replica"
+        description="Daily delta sync for Engram"
     )
     parser.add_argument(
         "--skip-google",

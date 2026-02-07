@@ -1,6 +1,6 @@
 """MCP Client for connecting to external MCP servers.
 
-This client allows the Hani Replica bot to connect to and use tools
+This client allows the Engram bot to connect to and use tools
 from external MCP servers, extending its capabilities dynamically.
 """
 
