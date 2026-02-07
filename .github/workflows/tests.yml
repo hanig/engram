@@ -38,11 +38,16 @@ jobs:
           PYTHONPATH: .
           GOOGLE_CLIENT_ID: test-client-id
           GOOGLE_CLIENT_SECRET: test-client-secret
+          GOOGLE_ACCOUNTS: test
+          GOOGLE_EMAILS: '{"test":"test@example.com"}'
+          GOOGLE_TIER1: test
+          GOOGLE_TIER2: ""
           GITHUB_TOKEN: test-github-token
           GITHUB_USERNAME: test-user
           GITHUB_ORG: test-org
           SLACK_BOT_TOKEN: test-slack-bot-token
           SLACK_APP_TOKEN: test-slack-app-token
+          SLACK_AUTHORIZED_USERS: U123TEST
           OPENAI_API_KEY: test-openai-key
           ANTHROPIC_API_KEY: test-anthropic-key
         run: pytest -q
