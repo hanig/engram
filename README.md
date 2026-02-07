@@ -50,7 +50,7 @@ A personal knowledge graph system that aggregates data from multiple Google acco
 │                       Tools Layer                             │
 │  search_emails │ send_email │ create_event │ add_comment │ .. │
 ├───────────────────────────────────────────────────────────────┤
-│              Query Engine + Semantic Search                    │
+│              Query Engine + Semantic Search                   │
 ├─────────────────────┬─────────────────────────────────────────┤
 │  Knowledge Graph    │          Vector Store                   │
 │  (SQLite)           │          (ChromaDB)                     │
