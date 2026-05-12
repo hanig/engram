@@ -11,7 +11,7 @@ from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
 from ..config import ANTHROPIC_API_KEY, AGENT_MODEL, SLACK_AUTHORIZED_USERS, get_user_timezone
-from .formatters import format_briefing, format_calendar_events
+from .formatters import format_briefing, format_calendar_events, markdown_to_slack
 from .proactive_settings import ProactiveSettingsStore, UserProactiveSettings
 
 if TYPE_CHECKING:
@@ -551,7 +551,7 @@ Briefing data:
                 max_tokens=2048,
                 messages=[{"role": "user", "content": prompt}],
             )
-            return response.content[0].text
+            return markdown_to_slack(response.content[0].text)
         except Exception as e:
             logger.warning(f"LLM briefing generation failed, falling back to static: {e}")
             formatted = format_briefing(briefing)
@@ -601,7 +601,19 @@ Briefing data:
         except Exception as e:
             logger.error(f"Error getting Todoist overdue tasks for briefing: {e}", exc_info=True)
 
+        # Release connections to prevent socket exhaustion
+        try:
+            self.multi_google.close()
+        except Exception:
+            pass
+
         return briefing
+
+    def cleanup_connections(self):
+        """Periodically release Google API connections to prevent socket exhaustion."""
+        if self._multi_google is not None:
+            self._multi_google.close()
+            self._multi_google = None
 
     def _get_dm_channel(self, user_id: str) -> str | None:
         """Get or open a DM channel with a user.

@@ -104,6 +104,7 @@ NOTION_WORKSPACE = get_env("NOTION_WORKSPACE", "default")
 
 # Todoist Configuration
 TODOIST_API_KEY = get_env("TODOIST_API_KEY")
+TODOIST_PROJECT_ID = get_env("TODOIST_PROJECT_ID")
 
 # Zotero Configuration
 ZOTERO_API_KEY = get_env("ZOTERO_API_KEY")
@@ -150,8 +151,10 @@ ENABLE_DIRECT_EMAIL_SEND = get_env("ENABLE_DIRECT_EMAIL_SEND", "false").lower() 
 # User timezone (IANA name, e.g., "America/Los_Angeles")
 USER_TIMEZONE = get_env("USER_TIMEZONE", "America/Los_Angeles")
 
-# Minimum interval between Slack message updates (in seconds) to avoid rate limiting
-STREAMING_UPDATE_INTERVAL = float(get_env("STREAMING_UPDATE_INTERVAL", "0.5"))
+# Minimum interval between Slack message updates (in seconds) to avoid rate limiting.
+# Slack redraws edited messages, so sentence-level updates generally feel smoother
+# than token-level repainting.
+STREAMING_UPDATE_INTERVAL = float(get_env("STREAMING_UPDATE_INTERVAL", "1.25"))
 
 # Database paths
 KNOWLEDGE_GRAPH_DB = PROJECT_ROOT / get_env("KNOWLEDGE_GRAPH_DB", "data/knowledge_graph.db")
@@ -267,7 +270,3 @@ def validate_config() -> list[str]:
         issues.append("SLACK_AUTHORIZED_USERS not set (bot will reject all users)")
 
     return issues
-
-
-# Initialize directories on import
-ensure_directories()

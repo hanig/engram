@@ -92,9 +92,9 @@ THEMES = [
 
 
 def get_todays_theme(idea_count: int) -> dict:
-    """Select theme based on rotating weekly schedule."""
-    week_index = (idea_count // 7) % len(THEMES)
-    return THEMES[week_index]
+    """Select theme rotating each idea, cycling through all themes."""
+    index = idea_count % len(THEMES)
+    return THEMES[index]
 
 
 # ── Idea generation prompt ────────────────────────────────────────────

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.engram.ideaspark.generate</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/hani/Box Sync/CLAUDE/engram/scripts/ideaspark_cron.sh</string>
+        <string>generate</string>
+    </array>
+
+    <!-- 5:00 AM PT daily -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>5</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/hani/Box Sync/CLAUDE/engram/logs/ideaspark_generate.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/hani/Box Sync/CLAUDE/engram/logs/ideaspark_generate.err.log</string>
+
+</dict>
+</plist>

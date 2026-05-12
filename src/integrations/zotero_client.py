@@ -605,12 +605,20 @@ class ZoteroClient:
             if match:
                 return f"10.1038/{match.group(1)}"
 
+        # ScienceDirect: sciencedirect.com/science/article/pii/S...
+        # Uses PII not DOI in URL — look up via CrossRef
+        if "sciencedirect.com/" in url:
+            match = re.search(r"/pii/(S[\dX]+)", url)
+            if match:
+                doi = self._resolve_pii_to_doi(match.group(1))
+                if doi:
+                    return doi
+
         # Cell/Elsevier: cell.com/cell/fulltext/S0092-8674(24)00123-4
         if "cell.com/" in url:
-            match = re.search(r"cell\.com/[^/]+/fulltext/(S[\d-]+\(\d+\)[\d-]+)", url)
-            if match:
-                # Cell DOIs are complex, try CrossRef lookup by URL
-                pass
+            doi = self._extract_doi_from_page(url)
+            if doi:
+                return doi
 
         # Science: science.org/doi/10.1126/science.xxx
         if "science.org/doi/" in url:
@@ -653,6 +661,59 @@ class ZoteroClient:
         match = re.search(r"(?:^|[/=])(10\.\d{4,}/[^\s&#]+)", url)
         if match:
             return match.group(1).rstrip("/")
+
+        # Last resort: fetch DOI from page meta tags
+        return self._extract_doi_from_page(url)
+
+    def _extract_doi_from_page(self, url: str) -> str | None:
+        """Fetch the DOI from a page's meta tags (citation_doi, dc.identifier)."""
+        import re
+        import httpx
+
+        try:
+            with httpx.Client() as client:
+                resp = client.get(
+                    url,
+                    headers={"User-Agent": "Mozilla/5.0"},
+                    follow_redirects=True,
+                    timeout=15.0,
+                )
+                if resp.status_code != 200:
+                    return None
+
+                html = resp.text
+                for attr in ("citation_doi", "dc.identifier", "dc.Identifier"):
+                    for pattern in [
+                        rf'<meta\s+name="{attr}"\s+content="([^"]+)"',
+                        rf'<meta\s+content="([^"]+)"\s+name="{attr}"',
+                    ]:
+                        match = re.search(pattern, html, re.IGNORECASE)
+                        if match:
+                            doi = match.group(1).strip()
+                            if doi.startswith("10."):
+                                return doi
+                            if "doi.org/" in doi:
+                                return doi.split("doi.org/", 1)[1]
+        except Exception as e:
+            logger.debug(f"DOI extraction from page failed for {url}: {e}")
+
+        return None
+
+    def _resolve_pii_to_doi(self, pii: str) -> str | None:
+        """Resolve an Elsevier PII to a DOI via CrossRef search."""
+        import httpx
+
+        try:
+            resp = httpx.get(
+                f"https://api.crossref.org/works?query={pii}&rows=1",
+                timeout=10.0,
+            )
+            if resp.status_code == 200:
+                items = resp.json().get("message", {}).get("items", [])
+                if items:
+                    return items[0].get("DOI")
+        except Exception as e:
+            logger.debug(f"CrossRef PII lookup failed for {pii}: {e}")
 
         return None
 

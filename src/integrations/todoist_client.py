@@ -10,7 +10,7 @@ from ..config import TODOIST_API_KEY
 
 logger = logging.getLogger(__name__)
 
-TODOIST_BASE_URL = "https://api.todoist.com/rest/v2"
+TODOIST_BASE_URL = "https://api.todoist.com/api/v1"
 
 
 class TodoistClient:
@@ -71,6 +71,61 @@ class TodoistClient:
                 return {}
             return response.json()
 
+    def _extract_results(
+        self,
+        payload: dict[str, Any] | list[dict[str, Any]],
+    ) -> tuple[list[dict[str, Any]], str | None]:
+        """Normalize list responses for both legacy and unified API shapes."""
+        if isinstance(payload, list):
+            return payload, None
+
+        if isinstance(payload, dict):
+            if "results" in payload and isinstance(payload["results"], list):
+                return payload["results"], payload.get("next_cursor")
+            return [payload], None
+
+        return [], None
+
+    def _extract_single(self, payload: dict[str, Any] | list[dict[str, Any]]) -> dict[str, Any]:
+        """Normalize single-object responses across API shapes."""
+        if isinstance(payload, dict):
+            if "results" in payload and isinstance(payload["results"], list):
+                return payload["results"][0] if payload["results"] else {}
+            return payload
+
+        if isinstance(payload, list):
+            return payload[0] if payload else {}
+
+        return {}
+
+    def _request_paginated(
+        self,
+        endpoint: str,
+        params: dict[str, Any] | None = None,
+        page_limit: int = 200,
+    ) -> list[dict[str, Any]]:
+        """Fetch all pages from cursor-paginated endpoints."""
+        all_results: list[dict[str, Any]] = []
+        query: dict[str, Any] = dict(params or {})
+        query["limit"] = page_limit
+        cursor: str | None = None
+
+        while True:
+            if cursor:
+                query["cursor"] = cursor
+            elif "cursor" in query:
+                del query["cursor"]
+
+            payload = self._request("GET", endpoint, params=query)
+            results, next_cursor = self._extract_results(payload)
+            all_results.extend(results)
+
+            if not next_cursor:
+                break
+            cursor = next_cursor
+
+        return all_results
+
     def test_connection(self) -> dict[str, Any]:
         """Test the connection to Todoist API.
 
@@ -96,7 +151,7 @@ class TodoistClient:
         Returns:
             List of project objects.
         """
-        result = self._request("GET", "/projects")
+        result = self._request_paginated("/projects")
         return [self._parse_project(p) for p in result]
 
     def get_project(self, project_id: str) -> dict[str, Any]:
@@ -109,7 +164,7 @@ class TodoistClient:
             Project object.
         """
         result = self._request("GET", f"/projects/{project_id}")
-        return self._parse_project(result)
+        return self._parse_project(self._extract_single(result))
 
     # --- Tasks ---
 
@@ -127,13 +182,15 @@ class TodoistClient:
         Returns:
             List of task objects.
         """
-        params = {}
-        if project_id:
-            params["project_id"] = project_id
         if filter:
-            params["filter"] = filter
+            result = self._request_paginated("/tasks/filter", params={"query": filter})
+            tasks = [self._parse_task(t) for t in result]
+            if project_id:
+                tasks = [t for t in tasks if t.get("project_id") == project_id]
+            return tasks
 
-        result = self._request("GET", "/tasks", params=params if params else None)
+        params = {"project_id": project_id} if project_id else {}
+        result = self._request_paginated("/tasks", params=params)
         return [self._parse_task(t) for t in result]
 
     def get_task(self, task_id: str) -> dict[str, Any]:
@@ -146,7 +203,7 @@ class TodoistClient:
             Task object.
         """
         result = self._request("GET", f"/tasks/{task_id}")
-        return self._parse_task(result)
+        return self._parse_task(self._extract_single(result))
 
     def create_task(
         self,
@@ -188,7 +245,7 @@ class TodoistClient:
             body["labels"] = labels
 
         result = self._request("POST", "/tasks", json=body)
-        return self._parse_task(result)
+        return self._parse_task(self._extract_single(result))
 
     def update_task(
         self,
@@ -225,7 +282,7 @@ class TodoistClient:
             body["labels"] = labels
 
         result = self._request("POST", f"/tasks/{task_id}", json=body)
-        return self._parse_task(result)
+        return self._parse_task(self._extract_single(result))
 
     def complete_task(self, task_id: str) -> bool:
         """Mark a task as complete.
@@ -271,7 +328,7 @@ class TodoistClient:
         Returns:
             List of label objects.
         """
-        result = self._request("GET", "/labels")
+        result = self._request_paginated("/labels")
         return [self._parse_label(l) for l in result]
 
     # --- Comments ---
@@ -285,7 +342,7 @@ class TodoistClient:
         Returns:
             List of comment objects.
         """
-        result = self._request("GET", "/comments", params={"task_id": task_id})
+        result = self._request_paginated("/comments", params={"task_id": task_id})
         return [self._parse_comment(c) for c in result]
 
     def add_comment(self, task_id: str, content: str) -> dict[str, Any]:
@@ -301,7 +358,7 @@ class TodoistClient:
         result = self._request(
             "POST", "/comments", json={"task_id": task_id, "content": content}
         )
-        return self._parse_comment(result)
+        return self._parse_comment(self._extract_single(result))
 
     # --- Parsing Helpers ---
 
@@ -312,7 +369,9 @@ class TodoistClient:
             "name": project["name"],
             "color": project.get("color"),
             "is_favorite": project.get("is_favorite", False),
-            "is_inbox_project": project.get("is_inbox_project", False),
+            "is_inbox_project": project.get(
+                "inbox_project", project.get("is_inbox_project", False)
+            ),
             "view_style": project.get("view_style", "list"),
             "url": project.get("url"),
         }
@@ -331,7 +390,7 @@ class TodoistClient:
 
         return {
             "id": task["id"],
-            "content": task["content"],
+            "content": task.get("content") or task.get("title", ""),
             "description": task.get("description", ""),
             "project_id": task.get("project_id"),
             "priority": task.get("priority", 1),

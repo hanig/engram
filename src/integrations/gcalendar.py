@@ -35,6 +35,12 @@ class CalendarClient:
             self._service = build("calendar", "v3", credentials=creds)
         return self._service
 
+    def close(self):
+        """Close the underlying HTTP connection."""
+        if self._service is not None:
+            self._service.close()
+            self._service = None
+
     def list_calendars(self) -> list[dict]:
         """List all calendars the user has access to."""
         try:

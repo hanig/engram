@@ -23,6 +23,18 @@ class MultiGoogleManager:
         self._drive_clients: dict[str, DriveClient] = {}
         self._calendar_clients: dict[str, CalendarClient] = {}
 
+    def close(self):
+        """Close all cached clients and release HTTP connections."""
+        for client in self._gmail_clients.values():
+            client.close()
+        for client in self._drive_clients.values():
+            client.close()
+        for client in self._calendar_clients.values():
+            client.close()
+        self._gmail_clients.clear()
+        self._drive_clients.clear()
+        self._calendar_clients.clear()
+
     def get_gmail_client(self, account: str) -> GmailClient | None:
         """Get or create a Gmail client for an account."""
         if account not in self._gmail_clients:

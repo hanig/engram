@@ -1,21 +1,22 @@
 """Tests for agent executor."""
 
-from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch, AsyncMock
+from datetime import datetime, timedelta
+from unittest.mock import MagicMock, patch
+from zoneinfo import ZoneInfo
 
 import pytest
 
+from src.bot.conversation import ConversationContext
 from src.bot.executor import (
+    MAX_ITERATIONS,
+    SYSTEM_PROMPT,
     AgentExecutor,
-    ToolExecutor,
     ExecutionResult,
     StreamEvent,
     StreamEventType,
-    MAX_ITERATIONS,
-    SYSTEM_PROMPT,
+    ToolExecutor,
 )
 from src.bot.tools import ToolResult
-from src.bot.conversation import ConversationContext
 
 
 class TestToolExecutor:
@@ -86,6 +87,41 @@ class TestToolExecutor:
 
         assert result.success is True
         assert result.data["event_count"] == 1
+        assert result.data["upcoming_event_count"] == 1
+        assert result.data["next_event"]["summary"] == "Team Meeting"
+
+    @patch("src.bot.executor.ToolExecutor.multi_google", new_callable=MagicMock)
+    def test_execute_get_calendar_events_filters_past_events(
+        self,
+        mock_google,
+        executor,
+    ):
+        """Test calendar events tool separates all events from upcoming events."""
+        now = datetime.now(ZoneInfo("America/Los_Angeles"))
+        mock_google.get_all_calendars_for_date.return_value = [
+            {
+                "id": "past",
+                "summary": "Already Happened",
+                "start": now - timedelta(hours=2),
+                "end": now - timedelta(hours=1),
+            },
+            {
+                "id": "future",
+                "summary": "Next Meeting",
+                "start": now + timedelta(hours=1),
+                "end": now + timedelta(hours=2),
+            },
+        ]
+
+        result = executor.execute("GetCalendarEventsTool", {"date": "today"})
+
+        assert result.success is True
+        assert result.data["event_count"] == 2
+        assert result.data["upcoming_event_count"] == 1
+        assert result.data["next_event"]["summary"] == "Next Meeting"
+        assert [event["summary"] for event in result.data["upcoming_events"]] == [
+            "Next Meeting"
+        ]
 
     @patch("src.bot.executor.ToolExecutor.multi_google", new_callable=MagicMock)
     def test_execute_check_availability(self, mock_google, executor):
@@ -117,20 +153,21 @@ class TestToolExecutor:
         assert result.data["total_unread"] == 15
         assert result.data["by_account"]["arc"] == 5
 
-    @patch("src.bot.executor.ToolExecutor.multi_google", new_callable=MagicMock)
-    def test_execute_create_email_draft(self, mock_google, executor):
-        """Test executing create email draft tool."""
-        mock_google.create_draft.return_value = {"id": "draft123"}
+    def test_execute_create_email_draft(self, executor):
+        """Test create email draft queues a confirmation action."""
+        context = ConversationContext(user_id="U1", channel_id="C1")
 
         result = executor.execute("CreateEmailDraftTool", {
             "to": "test@example.com",
             "subject": "Test Subject",
             "body": "Test body",
             "account": "arc",
-        })
+        }, context=context)
 
         assert result.success is True
-        assert result.data["draft_id"] == "draft123"
+        assert result.data["requires_confirmation"] is True
+        assert "confirmation" in result.data
+        assert context.pending_action is not None
 
     def test_execute_send_email_is_blocked(self, executor):
         """Test direct send-email tool is blocked defensively."""
@@ -212,23 +249,21 @@ class TestToolExecutor:
         mock_github.search_code_in_repo.assert_called_once()
         assert result.success is True
 
-    @patch("src.bot.executor.ToolExecutor.github_client", new_callable=MagicMock)
-    def test_execute_create_github_issue(self, mock_github, executor):
-        """Test executing create GitHub issue tool."""
-        mock_github.create_issue.return_value = {
-            "number": 42,
-            "html_url": "https://github.com/owner/repo/issues/42",
-        }
+    def test_execute_create_github_issue(self, executor):
+        """Test create GitHub issue queues a confirmation action."""
+        context = ConversationContext(user_id="U1", channel_id="C1")
 
         result = executor.execute("CreateGitHubIssueTool", {
             "repo": "owner/repo",
             "title": "New Issue",
             "body": "Issue description",
             "labels": ["bug"],
-        })
+        }, context=context)
 
         assert result.success is True
-        assert result.data["issue_number"] == 42
+        assert result.data["requires_confirmation"] is True
+        assert "confirmation" in result.data
+        assert context.pending_action is not None
 
     @patch("src.bot.executor.ToolExecutor.query_engine", new_callable=MagicMock)
     def test_execute_find_person(self, mock_engine, executor):
@@ -522,7 +557,7 @@ class TestAgentExecutor:
         mock_memory.get_context_summary.return_value = "User prefers Arc email"
 
         executor = AgentExecutor(api_key="test-key", user_memory=mock_memory)
-        result = executor.run("Check my email", mock_context)
+        executor.run("Check my email", mock_context)
 
         # Verify memory was queried
         mock_memory.get_context_summary.assert_called_once_with(mock_context.user_id)

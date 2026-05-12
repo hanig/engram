@@ -277,6 +277,7 @@ class SemanticIndexer:
         base_metadata = self._sanitize_metadata({
             "source_id": content["id"],
             "source_type": content_type,
+            "source": content.get("source"),
             "title": title,
             "source_account": content.get("source_account"),
             "timestamp": str(content.get("timestamp")) if content.get("timestamp") else None,
@@ -340,7 +341,7 @@ class SemanticIndexer:
                 documents = []
                 metadatas = []
 
-                for chunk, embedding in zip(batch_chunks, embeddings):
+                for chunk, _embedding in zip(batch_chunks, embeddings, strict=True):
                     source_id = chunk.metadata.get("source_id", "unknown")
                     chunk_id = f"{source_id}:chunk:{chunk.chunk_index}"
 

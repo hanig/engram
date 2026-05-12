@@ -1,10 +1,9 @@
 """Calendar specialist agent."""
 
 import logging
-from typing import Any
 
-from .base import BaseAgent, AgentType
 from ..conversation import ConversationContext
+from .base import AgentType, BaseAgent
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +49,7 @@ class CalendarAgent(BaseAgent):
 
 Your expertise is managing calendar events and scheduling across multiple Google accounts.
 
-Today's date: {current_date}
+Current local date/time: {current_date}
 
 CAPABILITIES:
 - Check calendar events for any date (today, tomorrow, specific dates)
@@ -61,10 +60,11 @@ CAPABILITIES:
 
 GUIDELINES:
 1. Always specify the date context clearly in your responses
-2. When showing events, organize by time of day
-3. For availability checks, suggest the best slots based on typical patterns
-4. Be concise but include key details (time, meeting name, location if available)
-5. Use RespondToUserTool to send your final response
+2. For "next", "upcoming", or "what's next" requests, use the tool's next_event and upcoming_events fields. Do not describe events whose end time is before current_time as upcoming.
+3. When showing full-day event listings, organize by time of day
+4. For availability checks, suggest the best slots based on typical patterns
+5. Be concise but include key details (time, meeting name, location if available)
+6. Use RespondToUserTool to send your final response
 
 RESPONSE FORMAT:
 - For event listings: Group by morning/afternoon/evening

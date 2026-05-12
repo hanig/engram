@@ -28,6 +28,14 @@ def _get_notion_client():
         return None
 
 
+def _chunk_rich_text(text: str, limit: int = 2000) -> list[dict]:
+    """Split text into Notion rich_text blocks of ≤ limit characters each."""
+    blocks = []
+    for i in range(0, len(text), limit):
+        blocks.append({"text": {"content": text[i : i + limit]}})
+    return blocks
+
+
 def _score_to_priority(scores: dict) -> str:
     """Map average score to priority level."""
     avg = sum(scores.values()) / max(len(scores), 1)
@@ -104,7 +112,7 @@ def archive_idea(
             parent={"database_id": database_id},
             properties={
                 "Name": {"title": [{"text": {"content": title}}]},
-                "Notes": {"rich_text": [{"text": {"content": notes_text[:2000]}}]},
+                "Notes": {"rich_text": _chunk_rich_text(notes_text)},
                 "Wet/Dry": {"select": {"name": wet_dry}},
                 "priority": {"select": {"name": priority}},
             },

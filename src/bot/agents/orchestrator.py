@@ -150,6 +150,10 @@ Remember: You're a trusted personal assistant. Be helpful, accurate, and efficie
         """Check if message is purely conversational (greetings, small talk)."""
         message_lower = message.lower().strip()
 
+        # Never treat as conversational if it contains personal data keywords
+        if self._needs_personal_data(message):
+            return False
+
         # Check greetings
         if message_lower in GREETINGS:
             return True

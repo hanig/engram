@@ -5,18 +5,17 @@ These schemas are converted to Claude's tool format for native tool calling.
 """
 
 from datetime import datetime, timedelta
-from enum import Enum
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
 from ..config import (
     ENABLE_DIRECT_EMAIL_SEND,
-    PRIMARY_ACCOUNT,
     ZOTERO_DEFAULT_COLLECTION,
     get_accounts_description,
     get_user_timezone,
 )
+
 
 class ToolResult(BaseModel):
     """Standard result format for tool execution."""
@@ -81,7 +80,7 @@ class SearchDriveTool(BaseModel):
 # --- Calendar Tools ---
 
 class GetCalendarEventsTool(BaseModel):
-    """Get calendar events for a specific date from all Google calendars."""
+    """Get calendar events for a date, including current-time-aware upcoming and next-event fields."""
 
     date: str = Field(
         default="today",

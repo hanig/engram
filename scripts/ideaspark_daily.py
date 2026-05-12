@@ -23,7 +23,7 @@ from src.config import (
 )
 from src.ideaspark.agent import IdeaSparkAgent
 from src.ideaspark.memory import IdeaMemory
-from src.ideaspark.notion_archive import archive_idea
+from src.ideaspark.todoist_archive import archive_idea
 
 logger = logging.getLogger(__name__)
 
@@ -135,34 +135,74 @@ def collect_feedback():
     channel_id = response["channel"]["id"]
 
     updated = 0
-    for entry in memory.idea_log:
-        if entry.get("reaction") is not None:
-            continue  # already have feedback
-        ts = entry.get("slack_ts")
-        if not ts:
+    # Snapshot: iterate over a copy since thumbsdown deletes from the list
+    pending = [
+        e for e in memory.idea_log
+        if e.get("reaction") is None and e.get("slack_ts")
+    ]
+
+    for entry in pending:
+        reaction = collect_reactions(channel_id, entry["slack_ts"])
+        if not reaction:
             continue
 
-        reaction = collect_reactions(channel_id, ts)
-        if reaction:
-            memory.record_feedback(entry["id"], reaction)
-            logger.info(f"Idea #{entry['id']}: reaction={reaction}")
-            updated += 1
+        idea_id = entry["id"]
+        # Capture fields before record_feedback (thumbsdown deletes the entry)
+        idea_meta = {
+            "title": entry.get("title", f"Idea #{idea_id}"),
+            "date": entry.get("date", "")[:10],
+            "theme": entry.get("theme", ""),
+            "strategy": entry.get("strategy", ""),
+            "scores": entry.get("scores", {}),
+            "brief": entry.get("brief", ""),
+            "is_stretch": entry.get("is_stretch", False),
+        }
 
-            # Archive to Notion if 🔥
-            if reaction == "fire":
-                archive_idea(
-                    idea_number=entry["id"],
-                    title=entry.get("title", f"Idea #{entry['id']}"),
-                    date_str=entry.get("date", "")[:10],
-                    theme=entry.get("theme", ""),
-                    strategy=entry.get("strategy", ""),
-                    scores=entry.get("scores", {}),
-                    brief=entry.get("brief", ""),
-                    is_stretch=entry.get("is_stretch", False),
-                )
+        memory.record_feedback(idea_id, reaction)
+        logger.info(f"Idea #{idea_id}: reaction={reaction}")
+        updated += 1
+
+        # Archive to Todoist if 🔥
+        if reaction == "fire":
+            page_id = archive_idea(
+                idea_number=idea_id,
+                title=idea_meta["title"],
+                date_str=idea_meta["date"],
+                theme=idea_meta["theme"],
+                strategy=idea_meta["strategy"],
+                scores=idea_meta["scores"],
+                brief=idea_meta["brief"],
+                is_stretch=idea_meta["is_stretch"],
+            )
+            if page_id:
+                # Mark archived so retry loop doesn't duplicate
+                for e in memory.idea_log:
+                    if e["id"] == idea_id:
+                        e["todoist_archived"] = True
+                        memory.save()
+                        break
+
+    # Retry archiving for 🔥 ideas that failed earlier (e.g. notion-client missing)
+    for entry in memory.idea_log:
+        if entry.get("reaction") == "fire" and not entry.get("todoist_archived"):
+            page_id = archive_idea(
+                idea_number=entry["id"],
+                title=entry.get("title", f"Idea #{entry['id']}"),
+                date_str=entry.get("date", "")[:10],
+                theme=entry.get("theme", ""),
+                strategy=entry.get("strategy", ""),
+                scores=entry.get("scores", {}),
+                brief=entry.get("brief", ""),
+                is_stretch=entry.get("is_stretch", False),
+            )
+            if page_id:
+                entry["todoist_archived"] = True
+                memory.save()
+                logger.info(f"Retried archiving idea #{entry['id']} → Todoist {page_id}")
+                updated += 1
 
     if updated:
-        logger.info(f"Collected {updated} new reactions")
+        logger.info(f"Collected/archived {updated} updates")
 
     # Generate meta-summary if threshold reached
     summary = memory.generate_meta_summary()

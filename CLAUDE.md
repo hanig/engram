@@ -1,6 +1,6 @@
 # Engram - Claude Code Instructions
 
-Personal knowledge graph system aggregating data from 6 Google accounts, GitHub, and Slack with semantic search and Slack bot interface.
+Personal knowledge graph system aggregating data from Google accounts, GitHub, Slack, Notion, Todoist, and Zotero with semantic search and a Slack bot interface.
 
 ## Project Structure
 
@@ -14,7 +14,10 @@ engram/
 │   │   ├── google_multi.py       # Multi-account manager with tiered search
 │   │   ├── gmail.py, gdrive.py, gcalendar.py
 │   │   ├── github_client.py
-│   │   └── slack.py
+│   │   ├── slack.py
+│   │   ├── notion_client.py
+│   │   ├── todoist_client.py
+│   │   └── zotero_client.py
 │   ├── indexers/                 # Content indexers
 │   │   ├── gmail_indexer.py, gdrive_indexer.py, gcal_indexer.py
 │   │   ├── github_indexer.py, slack_indexer.py
@@ -27,7 +30,8 @@ engram/
 │   │   ├── app.py                # Main bot (Socket Mode)
 │   │   ├── intent_router.py      # LLM intent classification
 │   │   ├── handlers/             # Intent handlers
-│   │   └── actions/              # Confirmable actions
+│   │   ├── agents/               # Multi-agent specialists
+│   │   └── actions/              # Confirmable write actions
 │   └── query/                    # Query engine
 ├── scripts/                      # Orchestration scripts
 ├── tests/                        # Pytest tests
@@ -51,6 +55,9 @@ All secrets in `.env`:
 - `OPENAI_API_KEY` - For embeddings
 - `ANTHROPIC_API_KEY` - For intent classification
 - `SLACK_AUTHORIZED_USERS` - Comma-separated user IDs
+- `USER_TIMEZONE` - IANA timezone used for calendar and relative date handling
+- `BOT_MODE` - `intent`, `agent`, or `multi_agent`
+- `ENABLE_STREAMING` and `STREAMING_UPDATE_INTERVAL` - Slack streaming behavior
 
 ## Common Commands
 
@@ -97,7 +104,9 @@ SQLite database with tables:
 - Socket Mode (no public URL needed)
 - Claude Haiku for intent classification
 - Multi-turn conversations with 30-min TTL
-- Actions that modify data require confirmation
+- Agent and multi-agent modes use Claude tool calling
+- Calendar "next/upcoming" answers use current local time and exclude already-ended events
+- Actions that modify data require Slack button confirmation
 
 ### Security
 - OAuth tokens stored locally in `credentials/`
