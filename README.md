@@ -12,7 +12,7 @@ This project is designed first for personal/local use. Do not expose it publicly
 
 ### Core Capabilities
 - **Multi-Account Google Integration**: Sync Gmail, Google Drive, and Google Calendar from up to 6 accounts with tiered search (primary accounts searched first)
-- **Google Write Capabilities**: Create email drafts, create/modify calendar events, and comment on Google Docs, with confirmation before writes
+- **Google Write Capabilities**: Create email drafts, create/modify/cancel calendar events, and comment/reply/resolve comments on Google Docs, with confirmation before writes
 - **Zotero Integration**: Search papers, add references by DOI/URL with automatic metadata extraction (CrossRef + page scraping)
 - **Notion & Todoist**: Search pages, manage tasks, create content
 - **Knowledge Graph**: SQLite-based storage of entities (people, repos, files) and content with relationship tracking
@@ -27,6 +27,7 @@ This project is designed first for personal/local use. Do not expose it publicly
 - **Tool Calling**: LLM-driven tool selection with multi-step execution capabilities
 - **Persistent Memory**: Conversation history and user preferences survive restarts
 - **Proactive Alerts**: Calendar reminders, important email notifications, and daily briefings
+- **Slack-Configurable Notifications**: Inspect and update proactive reminder/briefing/quiet-hours settings from Slack
 - **Confirmation-Gated Actions**: Write actions use explicit Slack confirmation buttons with action-ID validation
 
 ### Security
@@ -325,6 +326,7 @@ Single agent with LLM-driven tool calling.
 ### Multi-Agent Mode (`multi_agent`)
 Orchestrator routes to specialist agents.
 - **Calendar Agent**: View events, answer next/upcoming questions using current local time, check availability, create events with attendee invites
+- **Calendar Agent**: View events, answer next/upcoming questions using current local time, check availability, create/update/cancel events with attendee notifications
 - **Email Agent**: Search, drafts, and optional send (feature-flagged)
 - **GitHub Agent**: PRs, issues, repository activity
 - **Research Agent**: Semantic search, briefings
@@ -346,7 +348,10 @@ Talk to the bot via DM or @mention in channels:
 | `Search for emails about [topic]` | Semantic search across emails |
 | `Send an email to [person] about [topic]` | Create draft by default, or send via explicit confirmation if enabled |
 | `Create a meeting with [person] tomorrow at 2pm` | Create calendar events |
+| `Move event [id] to tomorrow at 3pm` | Update calendar events after confirmation |
+| `Cancel event [id]` | Cancel calendar events after confirmation |
 | `Find documents about [topic]` | Search Google Drive files |
+| `Comment on Google Doc [id]: [comment]` | Add Google Doc comments after confirmation |
 | `Show my open PRs` | List your GitHub pull requests |
 | `What issues are assigned to me?` | List assigned GitHub issues |
 | `Search my papers for [topic]` | Search Zotero library |
@@ -355,6 +360,7 @@ Talk to the bot via DM or @mention in channels:
 | `Find papers by [author]` | Search papers by author |
 | `What did I miss yesterday?` | Daily briefing for a specific date |
 | `Help` | Show available commands |
+| `Set my briefing to 8am weekdays` | Update proactive notification settings |
 
 ### Example Interactions
 
@@ -513,8 +519,8 @@ launchctl load ~/Library/LaunchAgents/com.engram.bot.plist
 - **Data**: All indexed data stays local in `data/` (gitignored)
 - **Bot Access**: Only Slack users listed in `SLACK_AUTHORIZED_USERS` can interact with the bot
 - **Email Sending**: Draft-only by default. Set `ENABLE_DIRECT_EMAIL_SEND=true` to enable send, which still requires explicit confirmation.
-- **Calendar Events**: The bot answers "next/upcoming" queries using `USER_TIMEZONE` and excludes events that already ended today. Creating events requires confirmation.
-- **Doc Comments**: The bot can add comments to Google Docs you have access to
+- **Calendar Events**: The bot answers "next/upcoming" queries using `USER_TIMEZONE` and excludes events that already ended today. Creating, updating, and cancelling events require confirmation.
+- **Doc Comments**: The bot can add, reply to, and resolve comments on Google Docs you have access to
 - **Other Write Actions**: Email drafts, GitHub issues, Todoist task changes, Notion writes, and Zotero additions require explicit confirmation
 - **Action Integrity**: Confirmation clicks are validated by action ID and thread-aware context lookup to prevent stale/mismatched execution
 - **Confirmation Timeout**: Pending confirmations expire after 5 minutes and must be re-requested

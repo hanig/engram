@@ -49,10 +49,13 @@ You have access to tools that let you:
 - Manage outbound email
 - Check calendar events and availability
 - Create calendar events and send meeting invites to attendees
+- Update or cancel calendar events when the user provides an event ID or enough context to identify one
 - Search GitHub code, issues, and PRs
 - Create GitHub issues
-- Get and create Todoist tasks, mark tasks complete
+- Get, create, update, comment on, reopen, and complete Todoist tasks
 - Search Notion pages and databases
+- Add, reply to, and resolve Google Doc comments
+- Read and update proactive notification settings
 - Get daily briefings
 
 Guidelines:
@@ -119,6 +122,7 @@ class ToolExecutor:
         self._notion_client = None
         self._todoist_client = None
         self._zotero_client = None
+        self._proactive_settings = None
 
     @property
     def semantic_indexer(self):
@@ -176,6 +180,14 @@ class ToolExecutor:
             self._zotero_client = ZoteroClient()
         return self._zotero_client
 
+    @property
+    def proactive_settings(self):
+        """Lazy load proactive settings store."""
+        if self._proactive_settings is None:
+            from .proactive_settings import ProactiveSettingsStore
+            self._proactive_settings = ProactiveSettingsStore()
+        return self._proactive_settings
+
     def execute(
         self,
         tool_name: str,
@@ -204,12 +216,22 @@ class ToolExecutor:
                 return handler(arguments, context=context)
             if handler_name in {
                 "create_calendar_event",
+                "update_calendar_event",
+                "delete_calendar_event",
                 "create_email_draft",
                 "create_github_issue",
                 "create_todoist_task",
                 "complete_todoist_task",
+                "update_todoist_task",
+                "add_todoist_comment",
+                "reopen_todoist_task",
                 "create_notion_page",
                 "add_notion_comment",
+                "add_google_doc_comment",
+                "reply_google_doc_comment",
+                "resolve_google_doc_comment",
+                "get_proactive_settings",
+                "update_proactive_settings",
                 "add_zotero_paper",
             }:
                 return handler(arguments, context=context)
@@ -447,6 +469,111 @@ class ToolExecutor:
             ConfirmableAction("Create Calendar Event", preview, execute_event),
             context,
             "Please confirm creating this calendar event.",
+        )
+
+    def _execute_update_calendar_event(
+        self,
+        args: dict,
+        context: "ConversationContext | None" = None,
+    ) -> ToolResult:
+        """Queue calendar event update for confirmation."""
+        from datetime import timedelta
+
+        from .actions.confirmable import ConfirmableAction
+
+        account = args.get("account") or PRIMARY_ACCOUNT
+        calendar_id = args.get("calendar_id", "primary")
+        updates: dict[str, Any] = {}
+        preview_lines = [
+            f"*Event ID:* {args['event_id']}",
+            f"*Account:* {account}",
+            f"*Calendar:* {calendar_id}",
+        ]
+
+        if args.get("title") is not None:
+            updates["summary"] = args["title"]
+            preview_lines.append(f"*New title:* {args['title']}")
+        if args.get("location") is not None:
+            updates["location"] = args["location"]
+            preview_lines.append(f"*New location:* {args['location'] or '(blank)'}")
+        if args.get("description") is not None:
+            updates["description"] = args["description"]
+            desc = args["description"][:200] + ("..." if len(args["description"]) > 200 else "")
+            preview_lines.append(f"*New description:* {desc or '(blank)'}")
+        if args.get("attendees") is not None:
+            updates["attendees"] = args["attendees"]
+            preview_lines.append(f"*New attendees:* {', '.join(args['attendees']) or '(none)'}")
+
+        if args.get("date") or args.get("time"):
+            start_dt = self._parse_event_datetime(
+                args.get("date") or "today",
+                args.get("time") or "12:00",
+            )
+            duration = args.get("duration_minutes") or 60
+            updates["start"] = start_dt
+            updates["end"] = start_dt + timedelta(minutes=duration)
+            preview_lines.append(
+                f"*New time:* {start_dt.strftime('%Y-%m-%d %I:%M %p')} ({duration} min)"
+            )
+
+        if not updates:
+            return ToolResult(success=False, error="No calendar event updates were provided.")
+
+        def execute_update() -> dict[str, Any]:
+            event = self.multi_google.update_calendar_event(
+                account=account,
+                event_id=args["event_id"],
+                calendar_id=calendar_id,
+                send_notifications=args.get("send_notifications", True),
+                **updates,
+            )
+            return {
+                "success": True,
+                "event_id": event.get("id", args["event_id"]),
+                "html_link": event.get("htmlLink"),
+                "message": f"Updated calendar event: {event.get('summary', args['event_id'])}",
+            }
+
+        return self._queue_confirmation(
+            ConfirmableAction("Update Calendar Event", "\n".join(preview_lines), execute_update),
+            context,
+            "Please confirm updating this calendar event.",
+        )
+
+    def _execute_delete_calendar_event(
+        self,
+        args: dict,
+        context: "ConversationContext | None" = None,
+    ) -> ToolResult:
+        """Queue calendar event deletion for confirmation."""
+        from .actions.confirmable import ConfirmableAction
+
+        account = args.get("account") or PRIMARY_ACCOUNT
+        calendar_id = args.get("calendar_id", "primary")
+        preview = (
+            f"*Event ID:* {args['event_id']}\n"
+            f"*Account:* {account}\n"
+            f"*Calendar:* {calendar_id}\n"
+            f"*Send cancellation notifications:* {args.get('send_notifications', True)}"
+        )
+
+        def execute_delete() -> dict[str, Any]:
+            self.multi_google.delete_calendar_event(
+                account=account,
+                event_id=args["event_id"],
+                calendar_id=calendar_id,
+                send_notifications=args.get("send_notifications", True),
+            )
+            return {
+                "success": True,
+                "event_id": args["event_id"],
+                "message": f"Cancelled calendar event: {args['event_id']}",
+            }
+
+        return self._queue_confirmation(
+            ConfirmableAction("Cancel Calendar Event", preview, execute_delete),
+            context,
+            "Please confirm cancelling this calendar event.",
         )
 
     def _parse_event_datetime(self, date_str: str, time_str: str) -> datetime:
@@ -787,6 +914,115 @@ class ToolExecutor:
             "Please confirm completing this Todoist task.",
         )
 
+    def _execute_update_todoist_task(
+        self,
+        args: dict,
+        context: "ConversationContext | None" = None,
+    ) -> ToolResult:
+        """Queue Todoist task update for confirmation."""
+        from .actions.confirmable import ConfirmableAction
+
+        updates = {
+            "content": args.get("content"),
+            "description": args.get("description"),
+            "due_string": args.get("due"),
+            "priority": args.get("priority"),
+            "labels": args.get("labels"),
+        }
+        updates = {k: v for k, v in updates.items() if v is not None}
+        if not updates:
+            return ToolResult(success=False, error="No Todoist task updates were provided.")
+
+        try:
+            task = self.todoist_client.get_task(args["task_id"])
+            task_content = task.get("content", "Unknown task")
+        except Exception:
+            task_content = "Unknown task"
+
+        preview_lines = [f"*Task:* {task_content}", f"*ID:* {args['task_id']}"]
+        if args.get("content") is not None:
+            preview_lines.append(f"*New content:* {args['content']}")
+        if args.get("description") is not None:
+            desc = args["description"][:200] + ("..." if len(args["description"]) > 200 else "")
+            preview_lines.append(f"*New description:* {desc or '(blank)'}")
+        if args.get("due") is not None:
+            preview_lines.append(f"*New due:* {args['due']}")
+        if args.get("priority") is not None:
+            preview_lines.append(f"*New priority:* {args['priority']}")
+        if args.get("labels") is not None:
+            preview_lines.append(f"*New labels:* {', '.join(args['labels']) or '(none)'}")
+
+        def execute_update() -> dict[str, Any]:
+            task = self.todoist_client.update_task(args["task_id"], **updates)
+            return {
+                "success": True,
+                "task_id": task["id"],
+                "content": task["content"],
+                "url": task.get("url"),
+                "message": f"Updated Todoist task: {task['content']}",
+            }
+
+        return self._queue_confirmation(
+            ConfirmableAction("Update Todoist Task", "\n".join(preview_lines), execute_update),
+            context,
+            "Please confirm updating this Todoist task.",
+        )
+
+    def _execute_add_todoist_comment(
+        self,
+        args: dict,
+        context: "ConversationContext | None" = None,
+    ) -> ToolResult:
+        """Queue Todoist task comment for confirmation."""
+        from .actions.confirmable import ConfirmableAction
+
+        comment = args["content"][:300] + ("..." if len(args["content"]) > 300 else "")
+
+        def execute_comment() -> dict[str, Any]:
+            created = self.todoist_client.add_comment(args["task_id"], args["content"])
+            return {
+                "success": True,
+                "comment_id": created["id"],
+                "task_id": args["task_id"],
+                "message": "Added Todoist task comment.",
+            }
+
+        return self._queue_confirmation(
+            ConfirmableAction(
+                "Add Todoist Comment",
+                f"*Task ID:* {args['task_id']}\n*Comment:*\n{comment}",
+                execute_comment,
+            ),
+            context,
+            "Please confirm adding this Todoist comment.",
+        )
+
+    def _execute_reopen_todoist_task(
+        self,
+        args: dict,
+        context: "ConversationContext | None" = None,
+    ) -> ToolResult:
+        """Queue reopening a Todoist task for confirmation."""
+        from .actions.confirmable import ConfirmableAction
+
+        def execute_reopen() -> dict[str, Any]:
+            self.todoist_client.reopen_task(args["task_id"])
+            return {
+                "success": True,
+                "task_id": args["task_id"],
+                "message": f"Reopened Todoist task: {args['task_id']}",
+            }
+
+        return self._queue_confirmation(
+            ConfirmableAction(
+                "Reopen Todoist Task",
+                f"*Task ID:* {args['task_id']}",
+                execute_reopen,
+            ),
+            context,
+            "Please confirm reopening this Todoist task.",
+        )
+
     def _execute_search_notion(self, args: dict) -> ToolResult:
         """Search Notion pages and databases."""
         results = self.notion_client.search(
@@ -881,6 +1117,195 @@ class ToolExecutor:
             ),
             context,
             "Please confirm adding this Notion comment.",
+        )
+
+    def _execute_add_google_doc_comment(
+        self,
+        args: dict,
+        context: "ConversationContext | None" = None,
+    ) -> ToolResult:
+        """Queue adding a Google Doc comment for confirmation."""
+        from .actions.confirmable import ConfirmableAction
+
+        account = args.get("account") or PRIMARY_ACCOUNT
+        comment_preview = args["content"][:300] + ("..." if len(args["content"]) > 300 else "")
+        preview = (
+            f"*Document:* {args['document_id']}\n"
+            f"*Account:* {account}\n"
+            f"*Comment:*\n{comment_preview}"
+        )
+        if args.get("quoted_text"):
+            preview += f"\n*Anchor text:* {args['quoted_text'][:200]}"
+
+        def execute_comment() -> dict[str, Any]:
+            comment = self.multi_google.add_doc_comment(
+                account=account,
+                document_id=args["document_id"],
+                content=args["content"],
+                quoted_text=args.get("quoted_text"),
+            )
+            return {
+                "success": True,
+                "comment_id": comment["id"],
+                "document_id": args["document_id"],
+                "message": "Added Google Doc comment.",
+            }
+
+        return self._queue_confirmation(
+            ConfirmableAction("Add Google Doc Comment", preview, execute_comment),
+            context,
+            "Please confirm adding this Google Doc comment.",
+        )
+
+    def _execute_reply_google_doc_comment(
+        self,
+        args: dict,
+        context: "ConversationContext | None" = None,
+    ) -> ToolResult:
+        """Queue replying to a Google Doc comment for confirmation."""
+        from .actions.confirmable import ConfirmableAction
+
+        account = args.get("account") or PRIMARY_ACCOUNT
+        reply_preview = args["content"][:300] + ("..." if len(args["content"]) > 300 else "")
+
+        def execute_reply() -> dict[str, Any]:
+            reply = self.multi_google.reply_to_doc_comment(
+                account=account,
+                document_id=args["document_id"],
+                comment_id=args["comment_id"],
+                content=args["content"],
+            )
+            return {
+                "success": True,
+                "reply_id": reply["id"],
+                "comment_id": args["comment_id"],
+                "message": "Replied to Google Doc comment.",
+            }
+
+        return self._queue_confirmation(
+            ConfirmableAction(
+                "Reply Google Doc Comment",
+                (
+                    f"*Document:* {args['document_id']}\n"
+                    f"*Comment:* {args['comment_id']}\n"
+                    f"*Account:* {account}\n"
+                    f"*Reply:*\n{reply_preview}"
+                ),
+                execute_reply,
+            ),
+            context,
+            "Please confirm replying to this Google Doc comment.",
+        )
+
+    def _execute_resolve_google_doc_comment(
+        self,
+        args: dict,
+        context: "ConversationContext | None" = None,
+    ) -> ToolResult:
+        """Queue resolving a Google Doc comment for confirmation."""
+        from .actions.confirmable import ConfirmableAction
+
+        account = args.get("account") or PRIMARY_ACCOUNT
+
+        def execute_resolve() -> dict[str, Any]:
+            comment = self.multi_google.resolve_doc_comment(
+                account=account,
+                document_id=args["document_id"],
+                comment_id=args["comment_id"],
+            )
+            return {
+                "success": True,
+                "comment_id": comment["id"],
+                "message": "Resolved Google Doc comment.",
+            }
+
+        return self._queue_confirmation(
+            ConfirmableAction(
+                "Resolve Google Doc Comment",
+                (
+                    f"*Document:* {args['document_id']}\n"
+                    f"*Comment:* {args['comment_id']}\n"
+                    f"*Account:* {account}"
+                ),
+                execute_resolve,
+            ),
+            context,
+            "Please confirm resolving this Google Doc comment.",
+        )
+
+    def _execute_get_proactive_settings(
+        self,
+        args: dict,
+        context: "ConversationContext | None" = None,
+    ) -> ToolResult:
+        """Get proactive settings for the current Slack user."""
+        if context is None:
+            return ToolResult(success=False, error="Missing conversation context.")
+        settings = self.proactive_settings.get(context.user_id)
+        return ToolResult(data=settings.to_dict())
+
+    def _execute_update_proactive_settings(
+        self,
+        args: dict,
+        context: "ConversationContext | None" = None,
+    ) -> ToolResult:
+        """Queue proactive settings update for confirmation."""
+        from .actions.confirmable import ConfirmableAction
+
+        if context is None:
+            return ToolResult(success=False, error="Missing conversation context.")
+
+        allowed = {
+            "calendar_reminders_enabled",
+            "email_alerts_enabled",
+            "daily_briefing_enabled",
+            "reminder_minutes_before",
+            "briefing_hour",
+            "briefing_minute",
+            "briefing_days",
+            "important_contacts",
+            "alert_keywords",
+            "quiet_hours_start",
+            "quiet_hours_end",
+        }
+        updates = {k: v for k, v in args.items() if k in allowed and v is not None}
+        if not updates:
+            return ToolResult(success=False, error="No proactive setting updates were provided.")
+
+        def _validate_hour(name: str) -> None:
+            if name in updates and not 0 <= int(updates[name]) <= 23:
+                raise ValueError(f"{name} must be between 0 and 23")
+
+        try:
+            _validate_hour("briefing_hour")
+            _validate_hour("quiet_hours_start")
+            _validate_hour("quiet_hours_end")
+            if "briefing_minute" in updates and not 0 <= int(updates["briefing_minute"]) <= 59:
+                raise ValueError("briefing_minute must be between 0 and 59")
+            if "reminder_minutes_before" in updates and int(updates["reminder_minutes_before"]) < 0:
+                raise ValueError("reminder_minutes_before must be non-negative")
+            if "briefing_days" in updates and any(day < 0 or day > 6 for day in updates["briefing_days"]):
+                raise ValueError("briefing_days values must be between 0 and 6")
+        except ValueError as e:
+            return ToolResult(success=False, error=str(e))
+
+        preview = "\n".join(f"*{key}:* {value}" for key, value in updates.items())
+
+        def execute_update() -> dict[str, Any]:
+            settings = self.proactive_settings.get(context.user_id)
+            for key, value in updates.items():
+                setattr(settings, key, value)
+            self.proactive_settings.save(settings)
+            return {
+                "success": True,
+                "settings": settings.to_dict(),
+                "message": "Updated proactive notification settings.",
+            }
+
+        return self._queue_confirmation(
+            ConfirmableAction("Update Proactive Settings", preview, execute_update),
+            context,
+            "Please confirm updating your proactive notification settings.",
         )
 
     def _execute_search_zotero_papers(self, args: dict) -> ToolResult:

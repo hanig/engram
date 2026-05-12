@@ -2,11 +2,12 @@
 
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 from ..config import GOOGLE_ACCOUNTS, GOOGLE_EMAILS, GOOGLE_TIER1, GOOGLE_TIER2, get_user_timezone
 from .gcalendar import CalendarClient
+from .gdocs import DocsClient
 from .gdrive import DriveClient
 from .gmail import GmailClient
 from .google_auth import check_all_accounts, get_credentials
@@ -22,6 +23,7 @@ class MultiGoogleManager:
         self._gmail_clients: dict[str, GmailClient] = {}
         self._drive_clients: dict[str, DriveClient] = {}
         self._calendar_clients: dict[str, CalendarClient] = {}
+        self._docs_clients: dict[str, DocsClient] = {}
 
     def close(self):
         """Close all cached clients and release HTTP connections."""
@@ -31,9 +33,12 @@ class MultiGoogleManager:
             client.close()
         for client in self._calendar_clients.values():
             client.close()
+        for client in self._docs_clients.values():
+            client.close()
         self._gmail_clients.clear()
         self._drive_clients.clear()
         self._calendar_clients.clear()
+        self._docs_clients.clear()
 
     def get_gmail_client(self, account: str) -> GmailClient | None:
         """Get or create a Gmail client for an account."""
@@ -61,6 +66,15 @@ class MultiGoogleManager:
             else:
                 return None
         return self._calendar_clients.get(account)
+
+    def get_docs_client(self, account: str) -> DocsClient | None:
+        """Get or create a Google Docs client for an account."""
+        if account not in self._docs_clients:
+            if get_credentials(account):
+                self._docs_clients[account] = DocsClient(account)
+            else:
+                return None
+        return self._docs_clients.get(account)
 
     def get_authenticated_accounts(self) -> list[str]:
         """Get list of accounts with valid credentials."""
@@ -541,3 +555,90 @@ class MultiGoogleManager:
             location=location,
             send_notifications=send_notifications,
         )
+
+    def update_calendar_event(
+        self,
+        account: str,
+        event_id: str,
+        calendar_id: str = "primary",
+        send_notifications: bool = True,
+        **updates: Any,
+    ) -> dict[str, Any]:
+        """Update a calendar event in a specific account."""
+        client = self.get_calendar_client(account)
+        if not client:
+            raise ValueError(f"No Calendar client available for account: {account}")
+
+        return client.update_event(
+            event_id=event_id,
+            calendar_id=calendar_id,
+            send_notifications=send_notifications,
+            **updates,
+        )
+
+    def delete_calendar_event(
+        self,
+        account: str,
+        event_id: str,
+        calendar_id: str = "primary",
+        send_notifications: bool = True,
+    ) -> None:
+        """Delete a calendar event in a specific account."""
+        client = self.get_calendar_client(account)
+        if not client:
+            raise ValueError(f"No Calendar client available for account: {account}")
+
+        client.delete_event(
+            event_id=event_id,
+            calendar_id=calendar_id,
+            send_notifications=send_notifications,
+        )
+
+    def add_doc_comment(
+        self,
+        account: str,
+        document_id: str,
+        content: str,
+        quoted_text: str | None = None,
+    ) -> dict[str, Any]:
+        """Add a comment to a Google Doc from a specific account."""
+        client = self.get_docs_client(account)
+        if not client:
+            raise ValueError(f"No Docs client available for account: {account}")
+
+        return client.add_comment(
+            document_id=document_id,
+            content=content,
+            quoted_text=quoted_text,
+        )
+
+    def reply_to_doc_comment(
+        self,
+        account: str,
+        document_id: str,
+        comment_id: str,
+        content: str,
+    ) -> dict[str, Any]:
+        """Reply to a Google Doc comment from a specific account."""
+        client = self.get_docs_client(account)
+        if not client:
+            raise ValueError(f"No Docs client available for account: {account}")
+
+        return client.reply_to_comment(
+            document_id=document_id,
+            comment_id=comment_id,
+            content=content,
+        )
+
+    def resolve_doc_comment(
+        self,
+        account: str,
+        document_id: str,
+        comment_id: str,
+    ) -> dict[str, Any]:
+        """Resolve a Google Doc comment from a specific account."""
+        client = self.get_docs_client(account)
+        if not client:
+            raise ValueError(f"No Docs client available for account: {account}")
+
+        return client.resolve_comment(document_id=document_id, comment_id=comment_id)

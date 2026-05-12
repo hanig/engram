@@ -28,6 +28,15 @@ class DocsClient:
         self._drive_service = None
         self._docs_service = None
 
+    def close(self):
+        """Close underlying HTTP connections."""
+        if self._drive_service is not None:
+            self._drive_service.close()
+            self._drive_service = None
+        if self._docs_service is not None:
+            self._docs_service.close()
+            self._docs_service = None
+
     @property
     def drive_service(self):
         """Lazily initialize the Drive service (for comments)."""

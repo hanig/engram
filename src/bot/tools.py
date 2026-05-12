@@ -141,6 +141,40 @@ class CreateCalendarEventTool(BaseModel):
     )
 
 
+class UpdateCalendarEventTool(BaseModel):
+    """Update an existing calendar event, such as moving it, renaming it, changing location, or adding attendees."""
+
+    event_id: str = Field(description="Calendar event ID")
+    account: str | None = Field(
+        default=None,
+        description="Google account containing the event. " + get_accounts_description(),
+    )
+    calendar_id: str = Field(default="primary", description="Calendar ID, defaults to primary")
+    title: str | None = Field(default=None, description="New event title/summary")
+    date: str | None = Field(
+        default=None,
+        description="New start date: 'today', 'tomorrow', day name, or ISO format",
+    )
+    time: str | None = Field(default=None, description="New start time, e.g. '2pm' or '14:00'")
+    duration_minutes: int | None = Field(default=None, description="New duration in minutes")
+    location: str | None = Field(default=None, description="New location")
+    description: str | None = Field(default=None, description="New description")
+    attendees: list[str] | None = Field(default=None, description="Replacement attendee list")
+    send_notifications: bool = Field(default=True, description="Notify attendees of changes")
+
+
+class DeleteCalendarEventTool(BaseModel):
+    """Cancel/delete an existing calendar event."""
+
+    event_id: str = Field(description="Calendar event ID")
+    account: str | None = Field(
+        default=None,
+        description="Google account containing the event. " + get_accounts_description(),
+    )
+    calendar_id: str = Field(default="primary", description="Calendar ID, defaults to primary")
+    send_notifications: bool = Field(default=True, description="Send cancellation notifications")
+
+
 # --- Email Tools ---
 
 class GetUnreadCountsTool(BaseModel):
@@ -288,6 +322,30 @@ class CompleteTodoistTaskTool(BaseModel):
     task_id: str = Field(description="The task ID to complete")
 
 
+class UpdateTodoistTaskTool(BaseModel):
+    """Update a Todoist task's content, description, due date, priority, or labels."""
+
+    task_id: str = Field(description="The task ID to update")
+    content: str | None = Field(default=None, description="New task title/content")
+    description: str | None = Field(default=None, description="New task description")
+    due: str | None = Field(default=None, description="New due date in natural language")
+    priority: int | None = Field(default=None, description="Priority 1-4 where 4 is urgent")
+    labels: list[str] | None = Field(default=None, description="Replacement labels")
+
+
+class AddTodoistCommentTool(BaseModel):
+    """Add a comment to a Todoist task."""
+
+    task_id: str = Field(description="The task ID to comment on")
+    content: str = Field(description="Comment text")
+
+
+class ReopenTodoistTaskTool(BaseModel):
+    """Reopen a completed Todoist task."""
+
+    task_id: str = Field(description="The task ID to reopen")
+
+
 # --- Notion Tools ---
 
 class SearchNotionTool(BaseModel):
@@ -313,6 +371,67 @@ class AddNotionCommentTool(BaseModel):
 
     page_id: str = Field(description="Page ID to comment on")
     content: str = Field(description="Comment text")
+
+
+# --- Google Docs Tools ---
+
+class AddGoogleDocCommentTool(BaseModel):
+    """Add a comment to a Google Doc."""
+
+    document_id: str = Field(description="Google Doc document ID from the URL")
+    content: str = Field(description="Comment text")
+    quoted_text: str | None = Field(default=None, description="Optional quoted text to anchor the comment")
+    account: str | None = Field(
+        default=None,
+        description="Google account to use. " + get_accounts_description(),
+    )
+
+
+class ReplyGoogleDocCommentTool(BaseModel):
+    """Reply to an existing Google Doc comment."""
+
+    document_id: str = Field(description="Google Doc document ID")
+    comment_id: str = Field(description="Comment ID to reply to")
+    content: str = Field(description="Reply text")
+    account: str | None = Field(
+        default=None,
+        description="Google account to use. " + get_accounts_description(),
+    )
+
+
+class ResolveGoogleDocCommentTool(BaseModel):
+    """Resolve an existing Google Doc comment."""
+
+    document_id: str = Field(description="Google Doc document ID")
+    comment_id: str = Field(description="Comment ID to resolve")
+    account: str | None = Field(
+        default=None,
+        description="Google account to use. " + get_accounts_description(),
+    )
+
+
+# --- Proactive Settings Tools ---
+
+class GetProactiveSettingsTool(BaseModel):
+    """Get current proactive notification settings for this Slack user."""
+
+    pass
+
+
+class UpdateProactiveSettingsTool(BaseModel):
+    """Update proactive notification settings for this Slack user."""
+
+    calendar_reminders_enabled: bool | None = Field(default=None, description="Enable/disable calendar reminders")
+    email_alerts_enabled: bool | None = Field(default=None, description="Enable/disable important email alerts")
+    daily_briefing_enabled: bool | None = Field(default=None, description="Enable/disable daily briefings")
+    reminder_minutes_before: int | None = Field(default=None, description="Calendar reminder lead time in minutes")
+    briefing_hour: int | None = Field(default=None, description="Daily briefing hour, 0-23")
+    briefing_minute: int | None = Field(default=None, description="Daily briefing minute, 0-59")
+    briefing_days: list[int] | None = Field(default=None, description="Briefing days, Monday=0 through Sunday=6")
+    important_contacts: list[str] | None = Field(default=None, description="Important email sender substrings")
+    alert_keywords: list[str] | None = Field(default=None, description="Important email subject keywords")
+    quiet_hours_start: int | None = Field(default=None, description="Quiet-hours start hour, 0-23")
+    quiet_hours_end: int | None = Field(default=None, description="Quiet-hours end hour, 0-23")
 
 
 # --- Zotero Tools ---
@@ -379,6 +498,8 @@ def _build_all_tools() -> list[type[BaseModel]]:
         GetCalendarEventsTool,
         CheckAvailabilityTool,
         CreateCalendarEventTool,
+        UpdateCalendarEventTool,
+        DeleteCalendarEventTool,
         GetUnreadCountsTool,
         CreateEmailDraftTool,
         GetGitHubPRsTool,
@@ -391,9 +512,17 @@ def _build_all_tools() -> list[type[BaseModel]]:
         GetTodoistTasksTool,
         CreateTodoistTaskTool,
         CompleteTodoistTaskTool,
+        UpdateTodoistTaskTool,
+        AddTodoistCommentTool,
+        ReopenTodoistTaskTool,
         SearchNotionTool,
         CreateNotionPageTool,
         AddNotionCommentTool,
+        AddGoogleDocCommentTool,
+        ReplyGoogleDocCommentTool,
+        ResolveGoogleDocCommentTool,
+        GetProactiveSettingsTool,
+        UpdateProactiveSettingsTool,
         SearchZoteroPapersTool,
         GetZoteroPaperTool,
         ListRecentPapersTool,
@@ -418,6 +547,8 @@ TOOL_NAME_MAP = {
     "GetCalendarEventsTool": "get_calendar_events",
     "CheckAvailabilityTool": "check_availability",
     "CreateCalendarEventTool": "create_calendar_event",
+    "UpdateCalendarEventTool": "update_calendar_event",
+    "DeleteCalendarEventTool": "delete_calendar_event",
     "GetUnreadCountsTool": "get_unread_counts",
     "CreateEmailDraftTool": "create_email_draft",
     # Kept for defensive handling if older prompts/caches reference it.
@@ -432,9 +563,17 @@ TOOL_NAME_MAP = {
     "GetTodoistTasksTool": "get_todoist_tasks",
     "CreateTodoistTaskTool": "create_todoist_task",
     "CompleteTodoistTaskTool": "complete_todoist_task",
+    "UpdateTodoistTaskTool": "update_todoist_task",
+    "AddTodoistCommentTool": "add_todoist_comment",
+    "ReopenTodoistTaskTool": "reopen_todoist_task",
     "SearchNotionTool": "search_notion",
     "CreateNotionPageTool": "create_notion_page",
     "AddNotionCommentTool": "add_notion_comment",
+    "AddGoogleDocCommentTool": "add_google_doc_comment",
+    "ReplyGoogleDocCommentTool": "reply_google_doc_comment",
+    "ResolveGoogleDocCommentTool": "resolve_google_doc_comment",
+    "GetProactiveSettingsTool": "get_proactive_settings",
+    "UpdateProactiveSettingsTool": "update_proactive_settings",
     "SearchZoteroPapersTool": "search_zotero_papers",
     "GetZoteroPaperTool": "get_zotero_paper",
     "ListRecentPapersTool": "list_recent_papers",

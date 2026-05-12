@@ -139,6 +139,56 @@ class TestToolExecutor:
         assert result.success is True
         assert result.data["free_slot_count"] == 2
 
+    def test_execute_update_calendar_event_queues_confirmation(self, executor):
+        """Test calendar updates are confirmation-gated."""
+        context = ConversationContext(user_id="U1", channel_id="C1")
+
+        result = executor.execute(
+            "UpdateCalendarEventTool",
+            {
+                "event_id": "event123",
+                "account": "arc",
+                "calendar_id": "primary",
+                "title": "Updated Meeting",
+                "date": "tomorrow",
+                "time": "2pm",
+                "duration_minutes": 30,
+            },
+            context=context,
+        )
+
+        assert result.success is True
+        assert result.data["requires_confirmation"] is True
+        assert "confirmation" in result.data
+        assert context.pending_action is not None
+
+    def test_execute_update_calendar_event_requires_updates(self, executor):
+        """Test calendar update rejects empty updates."""
+        context = ConversationContext(user_id="U1", channel_id="C1")
+
+        result = executor.execute(
+            "UpdateCalendarEventTool",
+            {"event_id": "event123", "account": "arc"},
+            context=context,
+        )
+
+        assert result.success is False
+        assert "No calendar event updates" in result.error
+
+    def test_execute_delete_calendar_event_queues_confirmation(self, executor):
+        """Test calendar cancellation is confirmation-gated."""
+        context = ConversationContext(user_id="U1", channel_id="C1")
+
+        result = executor.execute(
+            "DeleteCalendarEventTool",
+            {"event_id": "event123", "account": "arc"},
+            context=context,
+        )
+
+        assert result.success is True
+        assert result.data["requires_confirmation"] is True
+        assert context.pending_action is not None
+
     @patch("src.bot.executor.ToolExecutor.multi_google", new_callable=MagicMock)
     def test_execute_get_unread_counts(self, mock_google, executor):
         """Test executing unread counts tool."""
@@ -263,6 +313,154 @@ class TestToolExecutor:
         assert result.success is True
         assert result.data["requires_confirmation"] is True
         assert "confirmation" in result.data
+        assert context.pending_action is not None
+
+    @patch("src.bot.executor.ToolExecutor.todoist_client", new_callable=MagicMock)
+    def test_execute_update_todoist_task_queues_confirmation(self, mock_todoist, executor):
+        """Test Todoist task updates are confirmation-gated."""
+        mock_todoist.get_task.return_value = {"id": "task123", "content": "Old task"}
+        context = ConversationContext(user_id="U1", channel_id="C1")
+
+        result = executor.execute(
+            "UpdateTodoistTaskTool",
+            {
+                "task_id": "task123",
+                "content": "New task",
+                "due": "tomorrow",
+                "priority": 4,
+            },
+            context=context,
+        )
+
+        assert result.success is True
+        assert result.data["requires_confirmation"] is True
+        assert context.pending_action is not None
+
+    def test_execute_add_todoist_comment_queues_confirmation(self, executor):
+        """Test Todoist comments are confirmation-gated."""
+        context = ConversationContext(user_id="U1", channel_id="C1")
+
+        result = executor.execute(
+            "AddTodoistCommentTool",
+            {"task_id": "task123", "content": "Follow up with Alice."},
+            context=context,
+        )
+
+        assert result.success is True
+        assert result.data["requires_confirmation"] is True
+        assert context.pending_action is not None
+
+    def test_execute_reopen_todoist_task_queues_confirmation(self, executor):
+        """Test reopening Todoist tasks is confirmation-gated."""
+        context = ConversationContext(user_id="U1", channel_id="C1")
+
+        result = executor.execute(
+            "ReopenTodoistTaskTool",
+            {"task_id": "task123"},
+            context=context,
+        )
+
+        assert result.success is True
+        assert result.data["requires_confirmation"] is True
+        assert context.pending_action is not None
+
+    def test_execute_add_google_doc_comment_queues_confirmation(self, executor):
+        """Test Google Doc comments are confirmation-gated."""
+        context = ConversationContext(user_id="U1", channel_id="C1")
+
+        result = executor.execute(
+            "AddGoogleDocCommentTool",
+            {
+                "document_id": "doc123",
+                "content": "Please clarify this section.",
+                "quoted_text": "ambiguous sentence",
+                "account": "arc",
+            },
+            context=context,
+        )
+
+        assert result.success is True
+        assert result.data["requires_confirmation"] is True
+        assert context.pending_action is not None
+
+    def test_execute_reply_google_doc_comment_queues_confirmation(self, executor):
+        """Test Google Doc comment replies are confirmation-gated."""
+        context = ConversationContext(user_id="U1", channel_id="C1")
+
+        result = executor.execute(
+            "ReplyGoogleDocCommentTool",
+            {
+                "document_id": "doc123",
+                "comment_id": "comment123",
+                "content": "Resolved in the latest draft.",
+                "account": "arc",
+            },
+            context=context,
+        )
+
+        assert result.success is True
+        assert result.data["requires_confirmation"] is True
+        assert context.pending_action is not None
+
+    def test_execute_resolve_google_doc_comment_queues_confirmation(self, executor):
+        """Test Google Doc comment resolution is confirmation-gated."""
+        context = ConversationContext(user_id="U1", channel_id="C1")
+
+        result = executor.execute(
+            "ResolveGoogleDocCommentTool",
+            {
+                "document_id": "doc123",
+                "comment_id": "comment123",
+                "account": "arc",
+            },
+            context=context,
+        )
+
+        assert result.success is True
+        assert result.data["requires_confirmation"] is True
+        assert context.pending_action is not None
+
+    def test_execute_get_proactive_settings_requires_context(self, executor):
+        """Test proactive settings reads require Slack context."""
+        result = executor.execute("GetProactiveSettingsTool", {})
+
+        assert result.success is False
+        assert "Missing conversation context" in result.error
+
+    @patch("src.bot.executor.ToolExecutor.proactive_settings", new_callable=MagicMock)
+    def test_execute_get_proactive_settings(self, mock_settings_store, executor):
+        """Test reading proactive settings for the current user."""
+        mock_settings = MagicMock()
+        mock_settings.to_dict.return_value = {
+            "user_id": "U1",
+            "daily_briefing_enabled": True,
+        }
+        mock_settings_store.get.return_value = mock_settings
+        context = ConversationContext(user_id="U1", channel_id="C1")
+
+        result = executor.execute("GetProactiveSettingsTool", {}, context=context)
+
+        assert result.success is True
+        assert result.data["user_id"] == "U1"
+        mock_settings_store.get.assert_called_once_with("U1")
+
+    def test_execute_update_proactive_settings_queues_confirmation(self, executor):
+        """Test proactive settings updates are confirmation-gated."""
+        context = ConversationContext(user_id="U1", channel_id="C1")
+
+        result = executor.execute(
+            "UpdateProactiveSettingsTool",
+            {
+                "daily_briefing_enabled": False,
+                "briefing_hour": 8,
+                "quiet_hours_start": 22,
+                "quiet_hours_end": 7,
+            },
+            context=context,
+        )
+
+        assert result.success is True
+        assert result.data["requires_confirmation"] is True
         assert context.pending_action is not None
 
     @patch("src.bot.executor.ToolExecutor.query_engine", new_callable=MagicMock)

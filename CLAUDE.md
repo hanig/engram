@@ -106,7 +106,7 @@ SQLite database with tables:
 - Multi-turn conversations with 30-min TTL
 - Agent and multi-agent modes use Claude tool calling
 - Calendar "next/upcoming" answers use current local time and exclude already-ended events
-- Actions that modify data require Slack button confirmation
+- Calendar create/update/cancel, Google Doc comments/replies/resolution, Todoist creates/updates/comments/completions/reopens, notification-setting changes, and other writes require Slack button confirmation
 
 ### Security
 - OAuth tokens stored locally in `credentials/`
