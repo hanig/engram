@@ -12,7 +12,7 @@ This project is designed first for personal/local use. Do not expose it publicly
 
 ### Core Capabilities
 - **Multi-Account Google Integration**: Sync Gmail, Google Drive, and Google Calendar from up to 6 accounts with tiered search (primary accounts searched first)
-- **Google Write Capabilities**: Create email drafts, create/modify calendar events, and comment on Google Docs
+- **Google Write Capabilities**: Create email drafts, create/modify/cancel calendar events, and comment/reply/resolve comments on Google Docs, with confirmation before writes
 - **Zotero Integration**: Search papers, add references by DOI/URL with automatic metadata extraction (CrossRef + page scraping)
 - **Notion & Todoist**: Search pages, manage tasks, create content
 - **Knowledge Graph**: SQLite-based storage of entities (people, repos, files) and content with relationship tracking
@@ -23,11 +23,12 @@ This project is designed first for personal/local use. Do not expose it publicly
 ### Advanced Agent Features
 - **Natural Conversation**: Chat naturally without triggering tool searches - greetings, questions about the bot, and general conversation are handled intelligently
 - **Multi-Agent Architecture**: Orchestrator routes tasks to specialist agents (Calendar, Email, GitHub, Research) for domain expertise
-- **Streaming Responses**: Real-time token-by-token response streaming for better UX
+- **Streaming Responses**: Slack-friendly streaming with readable partial updates instead of choppy token-level edits
 - **Tool Calling**: LLM-driven tool selection with multi-step execution capabilities
 - **Persistent Memory**: Conversation history and user preferences survive restarts
 - **Proactive Alerts**: Calendar reminders, important email notifications, and daily briefings
-- **Confirmation-Gated Actions**: Sensitive actions use explicit Slack confirmation buttons with action-ID validation
+- **Slack-Configurable Notifications**: Inspect and update proactive reminder/briefing/quiet-hours settings from Slack
+- **Confirmation-Gated Actions**: Write actions use explicit Slack confirmation buttons with action-ID validation
 
 ### Security
 - **Prompt Injection Protection**: Pattern-based detection and sanitization of malicious inputs
@@ -162,6 +163,12 @@ SLACK_BOT_TOKEN=xoxb-xxxxx
 SLACK_APP_TOKEN=xapp-xxxxx
 SLACK_WORKSPACE=your_workspace
 
+# Notion API
+# Create integration at: https://www.notion.so/my-integrations
+# Share each target page/database with the integration
+NOTION_API_KEY=secret_xxxxx
+NOTION_WORKSPACE=default
+
 # Authorized Slack User IDs (comma-separated)
 # Find your ID: Click profile → More → Copy member ID
 SLACK_AUTHORIZED_USERS=U12345678
@@ -197,6 +204,10 @@ AGENT_MODEL=claude-sonnet-4-20250514
 # Enable streaming responses (applies to agent and multi_agent modes)
 ENABLE_STREAMING=true
 
+# Slack message edit interval for streaming responses.
+# Slack redraws edited messages; 1.0-1.5s usually feels smoother than token-level updates.
+STREAMING_UPDATE_INTERVAL=1.25
+
 # Direct email send behavior
 # false (default): draft-only (recommended)
 # true: SendEmailTool enabled, but still requires explicit Slack confirmation button
@@ -213,6 +224,17 @@ ENABLE_AUDIT_LOG=true
 AUDIT_LOG_PATH=data/audit.db
 AUDIT_RETENTION_DAYS=90
 AUDIT_LOG_MESSAGES=false  # Store raw message text in audit logs
+```
+
+### Notion Setup
+
+1. Go to [Notion integrations](https://www.notion.so/my-integrations) and create an **Internal Integration**.
+2. Copy the **Internal Integration Token** and set `NOTION_API_KEY` in `.env`.
+3. In Notion, open each page/database you want indexed, click **Share**, and invite your integration.
+4. Verify access:
+
+```bash
+python -c "from src.integrations.notion_client import NotionClient; print(NotionClient().test_connection())"
 ```
 
 ### Google Account Authentication
@@ -298,12 +320,13 @@ Legacy mode using intent classification with hardcoded handlers.
 Single agent with LLM-driven tool calling.
 - Dynamic tool selection
 - Multi-step execution
-- Streaming responses
+- Slack-friendly streaming responses
 - Natural conversation support
 
 ### Multi-Agent Mode (`multi_agent`)
 Orchestrator routes to specialist agents.
-- **Calendar Agent**: View events, check availability, create events with attendee invites
+- **Calendar Agent**: View events, answer next/upcoming questions using current local time, check availability, create events with attendee invites
+- **Calendar Agent**: View events, answer next/upcoming questions using current local time, check availability, create/update/cancel events with attendee notifications
 - **Email Agent**: Search, drafts, and optional send (feature-flagged)
 - **GitHub Agent**: PRs, issues, repository activity
 - **Research Agent**: Semantic search, briefings
@@ -319,12 +342,16 @@ Talk to the bot via DM or @mention in channels:
 | `Hi` / `Hello` | Natural greeting - no tool search triggered |
 | `What can you do?` | Help and capabilities overview |
 | `What's on my calendar today?` | Show today's events from all accounts |
+| `What's my next event?` | Show the next event using your configured local timezone |
 | `What's my schedule for tomorrow?` | Show tomorrow's calendar |
 | `When am I free this week?` | Find available time slots |
 | `Search for emails about [topic]` | Semantic search across emails |
 | `Send an email to [person] about [topic]` | Create draft by default, or send via explicit confirmation if enabled |
 | `Create a meeting with [person] tomorrow at 2pm` | Create calendar events |
+| `Move event [id] to tomorrow at 3pm` | Update calendar events after confirmation |
+| `Cancel event [id]` | Cancel calendar events after confirmation |
 | `Find documents about [topic]` | Search Google Drive files |
+| `Comment on Google Doc [id]: [comment]` | Add Google Doc comments after confirmation |
 | `Show my open PRs` | List your GitHub pull requests |
 | `What issues are assigned to me?` | List assigned GitHub issues |
 | `Search my papers for [topic]` | Search Zotero library |
@@ -333,6 +360,7 @@ Talk to the bot via DM or @mention in channels:
 | `Find papers by [author]` | Search papers by author |
 | `What did I miss yesterday?` | Daily briefing for a specific date |
 | `Help` | Show available commands |
+| `Set my briefing to 8am weekdays` | Update proactive notification settings |
 
 ### Example Interactions
 
@@ -370,9 +398,10 @@ Bot: 🟢 Available slots tomorrow:
      • 4:00 PM - 6:00 PM
 
 You: Create a meeting with alice@company.com tomorrow at 2pm for 30 minutes
-Bot: Created event "Meeting" on 2024-02-04 at 2:00 PM.
-     Calendar invite sent to alice@company.com.
-     https://calendar.google.com/event?eid=xxx
+Bot: Please confirm creating this calendar event:
+     Event: Meeting
+     When: 2024-02-04 2:00 PM (30 min)
+     Attendees: alice@company.com
 ```
 
 ## Project Structure
@@ -417,6 +446,7 @@ engram/
 │   │   ├── event_handlers.py     # Message handlers with security
 │   │   ├── intent_router.py      # LLM intent classification
 │   │   ├── conversation.py       # Conversation state + persistence
+│   │   ├── datetime_utils.py     # Shared date/time parsing helpers
 │   │   ├── formatters.py         # Slack Block Kit formatting
 │   │   ├── tools.py              # Tool definitions for LLM
 │   │   ├── executor.py           # Agent executor with streaming
@@ -424,6 +454,7 @@ engram/
 │   │   ├── heartbeat.py          # Proactive notifications
 │   │   ├── security.py           # Input sanitization + rate limiting
 │   │   ├── audit.py              # Comprehensive audit logging
+│   │   ├── actions/              # Confirmable write actions
 │   │   ├── handlers/             # Intent-specific handlers
 │   │   │   ├── calendar.py
 │   │   │   ├── email.py
@@ -462,7 +493,7 @@ engram/
 │   └── audit.db                  # Security audit log
 ├── logs/                         # Log files (gitignored)
 ├── credentials/                  # OAuth tokens (gitignored)
-└── tests/                        # Test suite (360 tests)
+└── tests/                        # Test suite (361 passing, 6 skipped)
 ```
 
 ## Automation (macOS)
@@ -488,9 +519,9 @@ launchctl load ~/Library/LaunchAgents/com.engram.bot.plist
 - **Data**: All indexed data stays local in `data/` (gitignored)
 - **Bot Access**: Only Slack users listed in `SLACK_AUTHORIZED_USERS` can interact with the bot
 - **Email Sending**: Draft-only by default. Set `ENABLE_DIRECT_EMAIL_SEND=true` to enable send, which still requires explicit confirmation.
-- **Calendar Events**: The bot can create/modify events but confirms before making changes
-- **Doc Comments**: The bot can add comments to Google Docs you have access to
-- **GitHub Actions**: Issue creation requires explicit confirmation
+- **Calendar Events**: The bot answers "next/upcoming" queries using `USER_TIMEZONE` and excludes events that already ended today. Creating, updating, and cancelling events require confirmation.
+- **Doc Comments**: The bot can add, reply to, and resolve comments on Google Docs you have access to
+- **Other Write Actions**: Email drafts, GitHub issues, Todoist task changes, Notion writes, and Zotero additions require explicit confirmation
 - **Action Integrity**: Confirmation clicks are validated by action ID and thread-aware context lookup to prevent stale/mismatched execution
 - **Confirmation Timeout**: Pending confirmations expire after 5 minutes and must be re-requested
 

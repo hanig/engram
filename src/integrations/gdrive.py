@@ -54,6 +54,12 @@ class DriveClient:
             self._service = build("drive", "v3", credentials=creds)
         return self._service
 
+    def close(self):
+        """Close the underlying HTTP connection."""
+        if self._service is not None:
+            self._service.close()
+            self._service = None
+
     def get_about(self) -> dict:
         """Get user info and storage quota."""
         return (

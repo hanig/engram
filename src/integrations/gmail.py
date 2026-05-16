@@ -36,6 +36,12 @@ class GmailClient:
             self._service = build("gmail", "v1", credentials=creds)
         return self._service
 
+    def close(self):
+        """Close the underlying HTTP connection."""
+        if self._service is not None:
+            self._service.close()
+            self._service = None
+
     def get_profile(self) -> dict:
         """Get user profile information."""
         return self.service.users().getProfile(userId="me").execute()

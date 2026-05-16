@@ -115,6 +115,7 @@ class TodoistIndexer:
 
         stats = {
             "tasks_synced": 0,
+            "tasks_indexed": 0,
             "errors": 0,
         }
 
@@ -128,7 +129,8 @@ class TodoistIndexer:
             for task in tasks:
                 project_name = project_map.get(task.get("project_id"), "Inbox")
                 self._index_task(task, project_name, stats)
-                stats["tasks_synced"] += 1
+
+            stats["tasks_synced"] = stats["tasks_indexed"]
 
         except Exception as e:
             logger.error(f"Error in Todoist delta sync: {e}")

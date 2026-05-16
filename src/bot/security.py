@@ -10,7 +10,7 @@ import re
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 from typing import Any
 
@@ -24,7 +24,22 @@ def _normalize_action_type(action_type: str) -> str:
     value = re.sub(r"_+", "_", value).strip("_")
     aliases = {
         "create_email_draft": "create_draft",
+        "create_calendar_event": "create_event",
+        "update_calendar_event": "update_event",
+        "delete_calendar_event": "delete_event",
         "create_github_issue": "create_issue",
+        "create_todoist_task": "create_task",
+        "complete_todoist_task": "complete_task",
+        "update_todoist_task": "update_task",
+        "add_todoist_comment": "add_comment",
+        "reopen_todoist_task": "reopen_task",
+        "create_notion_page": "create_page",
+        "add_notion_comment": "add_comment",
+        "add_google_doc_comment": "add_comment",
+        "reply_google_doc_comment": "add_comment",
+        "resolve_google_doc_comment": "resolve_comment",
+        "update_proactive_settings": "update_settings",
+        "add_zotero_paper": "add_reference",
         "send_email": "send_message",
     }
     return aliases.get(value, value)
@@ -362,7 +377,19 @@ class SecurityGuard:
         # Actions that require extra validation
         sensitive_actions = {
             "create_draft": "Creates an email draft",
+            "create_event": "Creates a calendar event",
+            "update_event": "Updates a calendar event",
+            "delete_event": "Deletes a calendar event",
             "create_issue": "Creates a GitHub issue",
+            "create_task": "Creates a Todoist task",
+            "complete_task": "Completes a Todoist task",
+            "update_task": "Updates a Todoist task",
+            "reopen_task": "Reopens a Todoist task",
+            "create_page": "Creates a Notion page",
+            "add_comment": "Adds a comment",
+            "resolve_comment": "Resolves a comment",
+            "update_settings": "Updates notification settings",
+            "add_reference": "Adds a Zotero reference",
             "send_message": "Sends a message",
         }
 
@@ -487,10 +514,10 @@ def get_security_guard() -> SecurityGuard:
     global _security_guard
     if _security_guard is None:
         from ..config import (
-            SECURITY_LEVEL,
+            RATE_LIMIT_BLOCK_DURATION,
             RATE_LIMIT_REQUESTS,
             RATE_LIMIT_WINDOW,
-            RATE_LIMIT_BLOCK_DURATION,
+            SECURITY_LEVEL,
         )
         _security_guard = SecurityGuard(
             level=SecurityLevel(SECURITY_LEVEL),

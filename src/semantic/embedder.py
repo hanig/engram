@@ -4,7 +4,6 @@ import hashlib
 import json
 import logging
 from pathlib import Path
-from typing import Any
 
 from openai import OpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -101,7 +100,7 @@ class Embedder:
         if to_embed:
             new_embeddings = self._embed_batch(to_embed)
 
-            for idx, embedding in zip(to_embed_indices, new_embeddings):
+            for idx, embedding in zip(to_embed_indices, new_embeddings, strict=True):
                 results.append((idx, embedding))
 
                 # Cache result
@@ -175,15 +174,21 @@ class Embedder:
 
     def _load_cache(self) -> None:
         """Load embedding cache from disk."""
-        cache_file = self.cache_dir / "cache_index.json"
-        if cache_file.exists():
+        loaded = 0
+        for entry_file in self.cache_dir.glob("*.json"):
+            if entry_file.name == "cache_index.json":
+                continue
             try:
-                with open(cache_file) as f:
-                    index = json.load(f)
-                    # Only load index, embeddings loaded on demand
-                    logger.info(f"Loaded embedding cache index with {len(index)} entries")
+                with open(entry_file) as f:
+                    embedding = json.load(f)
+                if isinstance(embedding, list):
+                    self._cache[entry_file.stem] = embedding
+                    loaded += 1
             except Exception as e:
-                logger.warning(f"Error loading cache index: {e}")
+                logger.warning(f"Error loading embedding cache entry {entry_file.name}: {e}")
+
+        if loaded:
+            logger.info(f"Loaded {loaded} embedding cache entries")
 
     def _save_cache_entry(self, key: str, embedding: list[float]) -> None:
         """Save a single cache entry to disk."""

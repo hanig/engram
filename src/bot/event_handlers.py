@@ -7,18 +7,24 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from slack_bolt import App
 
-from ..config import SLACK_AUTHORIZED_USERS, SLACK_ALLOW_ALL_USERS, BOT_MODE, ENABLE_STREAMING, STREAMING_UPDATE_INTERVAL
+from ..config import (
+    BOT_MODE,
+    ENABLE_STREAMING,
+    SLACK_ALLOW_ALL_USERS,
+    SLACK_AUTHORIZED_USERS,
+    STREAMING_UPDATE_INTERVAL,
+)
+from .audit import AuditEventType, get_audit_logger
 from .conversation import ConversationManager
 from .formatters import format_error_message, format_help_message, markdown_to_slack
-from .intent_router import IntentRouter, Intent
-from .security import SecurityGuard, SecurityLevel, ThreatType, get_security_guard
-from .audit import AuditLogger, AuditEventType, get_audit_logger
+from .intent_router import Intent, IntentRouter
+from .security import get_security_guard
 
 if TYPE_CHECKING:
-    from .user_memory import UserMemory
-    from .feedback_loop import FeedbackLoop
-    from .executor import AgentExecutor, StreamEvent
     from .agents.orchestrator import Orchestrator
+    from .executor import AgentExecutor
+    from .feedback_loop import FeedbackLoop
+    from .user_memory import UserMemory
 
 logger = logging.getLogger(__name__)
 
@@ -50,20 +56,20 @@ def register_event_handlers(
     logger.info(f"Bot running in '{bot_mode}' mode (streaming: {streaming_enabled})")
 
     # Initialize based on mode
-    agent_executor: "AgentExecutor | None" = None
-    orchestrator: "Orchestrator | None" = None
+    agent_executor: AgentExecutor | None = None
+    orchestrator: Orchestrator | None = None
     intent_router: IntentRouter | None = None
     handlers: dict | None = None
 
     if bot_mode == "multi_agent":
         # Use multi-agent architecture with orchestrator
-        from .agents.orchestrator import Orchestrator
-        orchestrator = Orchestrator(user_memory=user_memory)
+        from .agents.orchestrator import Orchestrator as OrchestratorClass
+        orchestrator = OrchestratorClass(user_memory=user_memory)
         logger.info(f"Initialized Orchestrator with specialists: {orchestrator.get_available_specialists()}")
     elif bot_mode == "agent":
         # Use new agent executor with tool calling
-        from .executor import AgentExecutor
-        agent_executor = AgentExecutor(user_memory=user_memory)
+        from .executor import AgentExecutor as AgentExecutorClass
+        agent_executor = AgentExecutorClass(user_memory=user_memory)
         logger.info("Initialized AgentExecutor for tool calling")
     else:
         # Use legacy intent routing (streaming not supported)
@@ -71,12 +77,12 @@ def register_event_handlers(
         intent_router = IntentRouter()
 
         # Import handlers
-        from .handlers.chat import ChatHandler
-        from .handlers.search import SearchHandler
+        from .handlers.briefing import BriefingHandler
         from .handlers.calendar import CalendarHandler
+        from .handlers.chat import ChatHandler
         from .handlers.email import EmailHandler
         from .handlers.github import GitHubHandler
-        from .handlers.briefing import BriefingHandler
+        from .handlers.search import SearchHandler
 
         # Initialize handlers (lazy - they'll load resources when needed)
         handlers = {
@@ -128,7 +134,6 @@ def register_event_handlers(
 
     def _handle_message(event: dict, say, client, is_dm: bool) -> None:
         """Common message handling logic."""
-        start_time = time.time()
         user_id = event.get("user")
         channel_id = event.get("channel")
         thread_ts = event.get("thread_ts") or event.get("ts")
@@ -290,9 +295,6 @@ def register_event_handlers(
                     )
                 except Exception as e:
                     logger.warning(f"Failed to record query pattern: {e}")
-
-            # Calculate duration
-            duration_ms = int((time.time() - start_time) * 1000)
 
             # Send response
             if response:
@@ -566,6 +568,8 @@ def _handle_with_agent_streaming(
         accumulated_text = ""
         current_status = "Thinking..."
         last_update_time = time.time()
+        last_flushed_text = ""
+        done_text = None
         tool_count = 0
 
         # Process streaming events
@@ -584,11 +588,23 @@ def _handle_with_agent_streaming(
                     # Accumulate text chunks
                     accumulated_text += event.data
 
-                    # Update message at intervals to avoid rate limiting
+                    # Update on readable boundaries instead of every token burst.
                     current_time = time.time()
-                    if current_time - last_update_time >= STREAMING_UPDATE_INTERVAL:
+                    if _should_flush_stream_update(
+                        accumulated_text,
+                        last_flushed_text,
+                        last_update_time,
+                        current_time,
+                    ):
                         display_text = accumulated_text if accumulated_text else current_status
-                        _update_message_safe(client, channel_id, message_ts, display_text)
+                        _update_message_safe(
+                            client,
+                            channel_id,
+                            message_ts,
+                            display_text,
+                            parse_markdown=False,
+                        )
+                        last_flushed_text = display_text
                         last_update_time = current_time
 
                 elif event.event_type == StreamEventType.TOOL_START:
@@ -596,7 +612,14 @@ def _handle_with_agent_streaming(
                     tool_count += 1
                     current_status = f"Using {event.tool_name}..."
                     if not accumulated_text:
-                        _update_message_safe(client, channel_id, message_ts, current_status)
+                        _update_message_safe(
+                            client,
+                            channel_id,
+                            message_ts,
+                            current_status,
+                            parse_markdown=False,
+                        )
+                        last_flushed_text = current_status
                         last_update_time = time.time()
 
                 elif event.event_type == StreamEventType.TOOL_DONE:
@@ -607,7 +630,14 @@ def _handle_with_agent_streaming(
                     # Status update
                     current_status = event.data
                     if not accumulated_text:
-                        _update_message_safe(client, channel_id, message_ts, current_status)
+                        _update_message_safe(
+                            client,
+                            channel_id,
+                            message_ts,
+                            current_status,
+                            parse_markdown=False,
+                        )
+                        last_flushed_text = current_status
                         last_update_time = time.time()
 
                 elif event.event_type == StreamEventType.TEXT_DONE:
@@ -621,9 +651,7 @@ def _handle_with_agent_streaming(
                     return {"text": error_text}, None
 
                 elif event.event_type == StreamEventType.DONE:
-                    # Streaming complete
-                    final_text = event.data or accumulated_text
-                    _update_message_safe(client, channel_id, message_ts, final_text)
+                    done_text = event.data or accumulated_text
 
             except Exception as e:
                 logger.warning(f"Error processing stream event: {e}")
@@ -651,7 +679,7 @@ def _handle_with_agent_streaming(
             return {"text": final_text, "_streaming_sent": True}, None
         else:
             # Fallback if no result
-            fallback_text = accumulated_text or "I'm not sure how to respond."
+            fallback_text = done_text or accumulated_text or "I'm not sure how to respond."
             _update_message_safe(client, channel_id, message_ts, fallback_text)
             return {"text": fallback_text, "_streaming_sent": True}, None
 
@@ -751,6 +779,7 @@ def _handle_with_multi_agent_streaming(
         accumulated_text = ""
         current_status = "Thinking..."
         last_update_time = time.time()
+        last_flushed_text = ""
         done_text = None  # Track text from "done" event
 
         # Process streaming events
@@ -768,23 +797,49 @@ def _handle_with_multi_agent_streaming(
                 if event.event_type == "text_delta":
                     accumulated_text += event.data
 
-                    # Rate-limited updates
+                    # Boundary-aware updates avoid choppy Slack redraws.
                     current_time = time.time()
-                    if current_time - last_update_time >= STREAMING_UPDATE_INTERVAL:
+                    if _should_flush_stream_update(
+                        accumulated_text,
+                        last_flushed_text,
+                        last_update_time,
+                        current_time,
+                    ):
                         display_text = accumulated_text if accumulated_text else current_status
-                        _update_message_safe(client, channel_id, message_ts, display_text)
+                        _update_message_safe(
+                            client,
+                            channel_id,
+                            message_ts,
+                            display_text,
+                            parse_markdown=False,
+                        )
+                        last_flushed_text = display_text
                         last_update_time = current_time
 
                 elif event.event_type == "tool_start":
                     current_status = f"Using {event.tool_name}..."
                     if not accumulated_text:
-                        _update_message_safe(client, channel_id, message_ts, current_status)
+                        _update_message_safe(
+                            client,
+                            channel_id,
+                            message_ts,
+                            current_status,
+                            parse_markdown=False,
+                        )
+                        last_flushed_text = current_status
                         last_update_time = time.time()
 
                 elif event.event_type == "thinking":
                     current_status = event.data
                     if not accumulated_text:
-                        _update_message_safe(client, channel_id, message_ts, current_status)
+                        _update_message_safe(
+                            client,
+                            channel_id,
+                            message_ts,
+                            current_status,
+                            parse_markdown=False,
+                        )
+                        last_flushed_text = current_status
                         last_update_time = time.time()
 
                 elif event.event_type == "tool_done":
@@ -799,7 +854,6 @@ def _handle_with_multi_agent_streaming(
 
                 elif event.event_type == "done":
                     done_text = event.data or accumulated_text
-                    _update_message_safe(client, channel_id, message_ts, done_text)
 
             except Exception as e:
                 logger.warning(f"Error processing stream event: {e}")
@@ -844,7 +898,38 @@ def _handle_with_multi_agent_streaming(
         return {"text": error_response}, None
 
 
-def _update_message_safe(client, channel_id: str, message_ts: str, text: str) -> None:
+def _should_flush_stream_update(
+    accumulated_text: str,
+    last_flushed_text: str,
+    last_update_time: float,
+    current_time: float,
+) -> bool:
+    """Decide whether a partial Slack stream is worth repainting."""
+    if not accumulated_text or accumulated_text == last_flushed_text:
+        return False
+
+    if accumulated_text.startswith(last_flushed_text):
+        new_text = accumulated_text[len(last_flushed_text):]
+    else:
+        new_text = accumulated_text
+    if len(new_text) < 80 and current_time - last_update_time < STREAMING_UPDATE_INTERVAL:
+        return False
+
+    stripped = accumulated_text.rstrip()
+    has_boundary = bool(re.search(r"(\n\n|[.!?]\s|:\n|- .+\n)$", stripped))
+    enough_time = current_time - last_update_time >= STREAMING_UPDATE_INTERVAL
+    enough_text = len(new_text) >= 220
+
+    return (has_boundary and enough_time) or enough_text
+
+
+def _update_message_safe(
+    client,
+    channel_id: str,
+    message_ts: str,
+    text: str,
+    parse_markdown: bool = True,
+) -> None:
     """Safely update a Slack message, handling errors gracefully.
 
     Args:
@@ -854,8 +939,8 @@ def _update_message_safe(client, channel_id: str, message_ts: str, text: str) ->
         text: New message text.
     """
     try:
-        # Convert markdown to Slack mrkdwn format
-        slack_text = markdown_to_slack(text)
+        # Partial markdown can flicker while it is incomplete; final renders are formatted.
+        slack_text = markdown_to_slack(text) if parse_markdown else text
         client.chat_update(
             channel=channel_id,
             ts=message_ts,

@@ -2,11 +2,11 @@
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Any
 
-from .confirmable import PendingAction
 from ...config import PRIMARY_ACCOUNT
+from .confirmable import PendingAction
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +84,6 @@ class CreateEventAction(PendingAction):
     def execute(self) -> dict[str, Any]:
         """Create the calendar event."""
         from ...integrations.gcalendar import CalendarClient
-        from ...config import get_user_timezone
 
         try:
             # Parse the date and time
@@ -124,76 +123,9 @@ class CreateEventAction(PendingAction):
 
     def _parse_datetime(self) -> datetime:
         """Parse date_str and time_str into a datetime."""
-        from ...config import get_user_timezone
+        from ..datetime_utils import parse_event_datetime
 
-        tz = get_user_timezone()
-        now = datetime.now(tz)
-
-        # Parse date
-        date_lower = self.date_str.lower()
-        if date_lower == "today":
-            target_date = now.date()
-        elif date_lower == "tomorrow":
-            target_date = (now + timedelta(days=1)).date()
-        elif date_lower == "yesterday":
-            target_date = (now - timedelta(days=1)).date()
-        else:
-            # Try day names (next occurrence)
-            day_names = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
-            if date_lower in day_names:
-                target_weekday = day_names.index(date_lower)
-                days_ahead = target_weekday - now.weekday()
-                if days_ahead <= 0:  # Target day already happened this week
-                    days_ahead += 7
-                target_date = (now + timedelta(days=days_ahead)).date()
-            else:
-                # Try ISO format
-                try:
-                    target_date = datetime.fromisoformat(self.date_str).date()
-                except ValueError:
-                    # Fall back to today
-                    target_date = now.date()
-
-        # Parse time
-        time_lower = self.time_str.lower().strip()
-        hour = 12  # Default to noon
-        minute = 0
-
-        if time_lower == "noon":
-            hour, minute = 12, 0
-        elif time_lower == "midnight":
-            hour, minute = 0, 0
-        elif ":" in time_lower:
-            # Format like "14:00" or "2:30pm"
-            time_part = time_lower.replace("am", "").replace("pm", "").strip()
-            parts = time_part.split(":")
-            hour = int(parts[0])
-            minute = int(parts[1]) if len(parts) > 1 else 0
-            if "pm" in time_lower and hour < 12:
-                hour += 12
-            elif "am" in time_lower and hour == 12:
-                hour = 0
-        else:
-            # Format like "2pm" or "14"
-            time_clean = time_lower.replace("am", "").replace("pm", "").strip()
-            try:
-                hour = int(time_clean)
-                if "pm" in time_lower and hour < 12:
-                    hour += 12
-                elif "am" in time_lower and hour == 12:
-                    hour = 0
-            except ValueError:
-                pass
-
-        # Combine date and time
-        return datetime(
-            year=target_date.year,
-            month=target_date.month,
-            day=target_date.day,
-            hour=hour,
-            minute=minute,
-            tzinfo=tz,
-        )
+        return parse_event_datetime(self.date_str, self.time_str)
 
     def get_action_type(self) -> str:
         return "Create Calendar Event"

@@ -1,19 +1,19 @@
 """Base agent class for specialized domain agents."""
 
-import json
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Generator
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Generator
+from typing import Any
 
 from anthropic import Anthropic
 
+from ...config import AGENT_MODEL, ANTHROPIC_API_KEY, get_user_timezone
 from ..conversation import ConversationContext
-from ..tools import ToolResult, get_tool_schemas, TOOL_NAME_MAP
+from ..tools import get_tool_schemas
 from ..user_memory import UserMemory
-from ...config import ANTHROPIC_API_KEY, AGENT_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -156,8 +156,10 @@ class BaseAgent(ABC):
         """
         prompt = self.system_prompt
 
-        # Add current date
-        current_date = datetime.now().strftime("%Y-%m-%d %A")
+        # Add current local date/time
+        current_date = datetime.now(get_user_timezone()).strftime(
+            "%Y-%m-%d %A %I:%M %p %Z"
+        )
         prompt = prompt.replace("{current_date}", current_date)
 
         # Inject user memory context if available
@@ -192,11 +194,12 @@ class BaseAgent(ABC):
                 "content": msg["content"],
             })
 
-        # Add current message
-        messages.append({
+        current_message = {
             "role": "user",
             "content": message,
-        })
+        }
+        if not messages or messages[-1] != current_message:
+            messages.append(current_message)
 
         return messages
 
@@ -284,8 +287,7 @@ class BaseAgent(ABC):
                             })
 
                             if (
-                                tool_name == "SendEmailTool"
-                                and result.success
+                                result.success
                                 and isinstance(result.data, dict)
                                 and result.data.get("requires_confirmation")
                             ):
@@ -480,8 +482,7 @@ class BaseAgent(ABC):
                             })
 
                             if (
-                                tool_name == "SendEmailTool"
-                                and result.success
+                                result.success
                                 and isinstance(result.data, dict)
                                 and result.data.get("requires_confirmation")
                             ):

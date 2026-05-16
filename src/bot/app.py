@@ -2,6 +2,8 @@
 
 import atexit
 import logging
+import os
+import time
 from typing import Callable
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -83,11 +85,25 @@ def create_bot_app(
         enable_streaming=streaming,
     )
 
-    # Add global error handler
+    # Track repeated connection failures and restart if stuck
+    _error_state = {"broken_pipe_count": 0, "last_broken_pipe": 0.0}
+
     @app.error
     def global_error_handler(error, body, logger):
         logger.error(f"Error: {error}")
         logger.error(f"Request body: {body}")
+
+        if isinstance(error, BrokenPipeError):
+            now = time.time()
+            # Reset counter if last error was > 60s ago (not a tight loop)
+            if now - _error_state["last_broken_pipe"] > 60:
+                _error_state["broken_pipe_count"] = 0
+            _error_state["broken_pipe_count"] += 1
+            _error_state["last_broken_pipe"] = now
+
+            if _error_state["broken_pipe_count"] >= 5:
+                logger.error("BrokenPipeError loop detected — exiting for launchd restart")
+                os._exit(1)
 
     # Create Socket Mode handler
     handler = SocketModeHandler(app, app_token)
@@ -169,7 +185,16 @@ def _setup_proactive_scheduler(
         replace_existing=True,
     )
 
-    logger.info("Proactive scheduler configured with 4 jobs")
+    # Release stale Google API connections every 4 hours to prevent socket exhaustion
+    scheduler.add_job(
+        heartbeat.cleanup_connections,
+        IntervalTrigger(hours=4),
+        id="cleanup_connections",
+        name="Release Google API connections",
+        replace_existing=True,
+    )
+
+    logger.info("Proactive scheduler configured with 5 jobs")
     return scheduler
 
 
