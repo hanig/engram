@@ -89,7 +89,7 @@ class GetCalendarEventsTool(BaseModel):
 
 
 class CheckAvailabilityTool(BaseModel):
-    """Find available time slots across all calendars for scheduling meetings."""
+    """Find available time slots across all calendars for scheduling meetings, ignoring all-day events."""
 
     date: str = Field(
         default="today",

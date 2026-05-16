@@ -343,7 +343,7 @@ class MultiGoogleManager:
         duration_minutes: int = 30,
         working_hours: tuple[int, int] = (9, 18),
     ) -> list[dict[str, Any]]:
-        """Find available time slots across all calendars.
+        """Find available time slots across all calendars, ignoring all-day events.
 
         Args:
             date: The date to check.
@@ -360,10 +360,13 @@ class MultiGoogleManager:
         # Get all events for the date
         events = self.get_all_calendars_for_date(date)
 
-        # Filter to only confirmed events (not cancelled or declined)
+        # Filter to timed confirmed events. All-day entries are useful context
+        # on a calendar, but they should not block the whole working day.
         busy_periods = []
         for event in events:
             if event.get("cancelled"):
+                continue
+            if event.get("is_all_day"):
                 continue
             if event.get("start") and event.get("end"):
                 busy_periods.append((event["start"], event["end"]))
